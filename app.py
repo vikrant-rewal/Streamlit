@@ -23,23 +23,19 @@ DEFAULT_PREFERENCES = {
     "diet": "Vegetarian"
 }
 
-# Reliable, high-quality static images for each meal type to guarantee loading.
+# Reliable, high-quality static images (Claude doesn't generate images, so we use these)
 MEAL_IMAGES = {
-    "breakfast": "https://images.unsplash.com/photo-1589302168068-964664d93dc0?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=800&q=80",
-    "lunch": "https://images.unsplash.com/photo-1546833999-b9f581a1996d?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=800&q=80",
-    "dinner": "https://images.unsplash.com/photo-1585937421612-70a008356fbe?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=800&q=80",
-    "default": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=800&q=80"
+    "breakfast": "https://images.unsplash.com/photo-1589302168068-964664d93dc0?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
+    "lunch": "https://images.unsplash.com/photo-1546833999-b9f581a1996d?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
+    "dinner": "https://images.unsplash.com/photo-1585937421612-70a008356fbe?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
+    "default": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
 }
 
-# Fun loading messages
 LOADING_MESSAGES = [
     "🥕 Chopping the freshest vegetables...",
     "🍅 Simmering the sauces to perfection...",
     "🥬 Picking the best leaves from the garden...",
-    "🌶️ Adding a pinch of magic spice...",
-    "🍲 Consulting Grandma's secret recipe book...",
-    "🥗 Calculating the perfect nutrition balance...",
-    "👨‍🍳 The Chef is brainstorming your delicious day...",
+    "👨‍🍳 Claude is brainstorming your delicious day...",
     "🥑 Did you know? Healthy fats fuel your brain!",
     "🍋 Squeezing some zest into your life..."
 ]
@@ -48,119 +44,41 @@ LOADING_MESSAGES = [
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
-
-    /* Global Styles */
-    .stApp {
-        background-color: #FFF9F5; 
-        font-family: 'Poppins', sans-serif;
-    }
-    
+    .stApp { background-color: #FFF9F5; font-family: 'Poppins', sans-serif; }
     h1, h2, h3 { color: #2D3436; font-weight: 600; }
     
-    /* Header */
-    .main-header {
-        text-align: center;
-        padding: 20px 0;
-        margin-bottom: 20px;
-    }
-    .main-header h1 {
-        color: #FF6B6B;
-        font-size: 2.5rem;
-        margin: 0;
-        text-shadow: 2px 2px 0px rgba(0,0,0,0.05);
-    }
+    .main-header { text-align: center; padding: 20px 0; margin-bottom: 20px; }
+    .main-header h1 { color: #FF6B6B; font-size: 2.5rem; margin: 0; }
     
-    /* Food Card */
     .food-card { 
-        background: white; 
-        border-radius: 20px; 
-        overflow: hidden; 
-        box-shadow: 0 10px 25px rgba(0,0,0,0.05); 
-        margin-bottom: 25px; 
-        border: none;
+        background: white; border-radius: 20px; overflow: hidden; 
+        box-shadow: 0 10px 25px rgba(0,0,0,0.05); margin-bottom: 25px; border: none;
         transition: transform 0.2s;
     }
     .food-card:hover { transform: translateY(-3px); }
     
-    .food-img-container { 
-        height: 200px; 
-        overflow: hidden; 
-        position: relative;
-        background: #f0f0f0;
-    }
+    .food-img-container { height: 200px; overflow: hidden; position: relative; background: #f0f0f0; }
     .food-img { width: 100%; height: 100%; object-fit: cover; }
-    
     .meal-badge { 
-        position: absolute; top: 15px; left: 15px; 
-        background-color: #FF6B6B; color: white; 
-        padding: 5px 15px; border-radius: 20px; 
-        font-size: 0.75rem; font-weight: 600; 
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        position: absolute; top: 15px; left: 15px; background-color: #FF6B6B; color: white; 
+        padding: 5px 15px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; 
     }
     
     .food-details { padding: 20px; }
     .food-title { font-size: 1.2rem; font-weight: 600; color: #2D3436; margin-bottom: 8px; }
     .food-desc { font-size: 0.9rem; color: #636E72; line-height: 1.5; }
-    .food-meta {
-        margin-top: 15px; padding-top: 15px;
-        border-top: 1px dashed #eee;
-        font-size: 0.8em; color: #B2BEC3;
-        display: flex; justify-content: space-between;
-    }
+    .food-meta { margin-top: 15px; padding-top: 15px; border-top: 1px dashed #eee; font-size: 0.8em; color: #B2BEC3; display: flex; justify-content: space-between; }
 
-    /* Ingredients Section */
-    .ingredients-box {
-        background-color: #fff;
-        border: 2px dashed #FF6B6B;
-        border-radius: 15px;
-        padding: 20px;
-        margin-top: 20px;
-    }
-    .ing-title {
-        color: #FF6B6B; font-weight: 600; font-size: 1.1em; margin-bottom: 10px;
-        display: flex; align-items: center; gap: 10px;
-    }
+    .ingredients-box { background-color: #fff; border: 2px dashed #FF6B6B; border-radius: 15px; padding: 20px; margin-top: 20px; }
+    .ing-title { color: #FF6B6B; font-weight: 600; font-size: 1.1em; margin-bottom: 10px; }
 
-    /* Custom Loading Animation Style */
-    .chef-loading {
-        text-align: center;
-        padding: 40px;
-        background: white;
-        border-radius: 20px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-        margin: 20px 0;
-    }
-    .chef-loading-text {
-        color: #FF6B6B;
-        font-size: 1.2rem;
-        font-weight: 600;
-        margin-top: 15px;
-        animation: pulse 1.5s infinite;
-    }
-    @keyframes pulse {
-        0% { opacity: 0.6; }
-        50% { opacity: 1; }
-        100% { opacity: 0.6; }
-    }
+    .chef-loading { text-align: center; padding: 40px; background: white; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin: 20px 0; }
+    .chef-loading-text { color: #FF6B6B; font-size: 1.2rem; font-weight: 600; margin-top: 15px; animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
 
-    /* Input Styling */
-    .stTextInput input { 
-        border-radius: 30px; 
-        padding-left: 20px; 
-        border: 1px solid #eee;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.03);
-    }
-    .stTextInput input:focus {
-        border-color: #FF6B6B;
-        box-shadow: 0 2px 15px rgba(255, 107, 107, 0.1);
-    }
-
-    /* UI Elements */
     div.stButton > button { border-radius: 12px; font-weight: 600; border: none; }
-    div.stButton > button[kind="primary"] {
-        background: linear-gradient(135deg, #FF6B6B 0%, #EE5253 100%);
-        box-shadow: 0 4px 15px rgba(238, 82, 83, 0.4);
-    }
+    div.stButton > button[kind="primary"] { background: linear-gradient(135deg, #FF6B6B 0%, #EE5253 100%); box-shadow: 0 4px 15px rgba(238, 82, 83, 0.4); }
+    .stTextInput input { border-radius: 30px; padding-left: 20px; border: 1px solid #eee; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
     
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} .stDeployButton {display:none;}
     </style>
@@ -190,26 +108,41 @@ def text_to_speech(menu_json):
             return fp.name
     except: return None
 
-# --- 5. GEMINI API FUNCTION ---
-def call_gemini_direct(prompt_text):
-    api_key = st.secrets["GEMINI_API_KEY"]
-    models_waterfall = ["gemini-1.5-flash", "gemini-pro", "gemini-1.0-pro"]
-    headers = {"Content-Type": "application/json"}
-    payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
+# --- 5. CLAUDE API FUNCTION (NEW) ---
+def call_claude_api(prompt_text):
+    # Using REST API to avoid needing extra dependencies installed
+    try:
+        api_key = st.secrets["CLAUDE_API_KEY"]
+    except:
+        st.error("Missing CLAUDE_API_KEY in secrets.")
+        return None
 
-    for model in models_waterfall:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
-        try:
-            response = requests.post(url, headers=headers, json=payload, timeout=20)
-            if response.status_code == 200:
-                data = response.json()
-                if "candidates" in data and data["candidates"]:
-                    return data["candidates"][0]["content"]["parts"][0]["text"]
-            elif response.status_code in [429, 503]:
-                time.sleep(1)
-                continue
-        except: continue
-    return None
+    url = "https://api.anthropic.com/v1/messages"
+    headers = {
+        "x-api-key": api_key,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json"
+    }
+    
+    payload = {
+        "model": "claude-3-5-sonnet-20241022", # Using the latest Sonnet
+        "max_tokens": 1024,
+        "messages": [
+            {"role": "user", "content": prompt_text}
+        ]
+    }
+
+    try:
+        response = requests.post(url, headers=headers, json=payload, timeout=25)
+        if response.status_code == 200:
+            result = response.json()
+            return result['content'][0]['text']
+        else:
+            st.error(f"Claude Error: {response.status_code}")
+            return None
+    except Exception as e:
+        st.error(f"Connection Error: {e}")
+        return None
 
 # --- 6. STATE & SIDEBAR ---
 if 'preferences' not in st.session_state: st.session_state.preferences = load_memory()
@@ -263,14 +196,14 @@ def generate_menu_ai():
     date_display = st.session_state.selected_date.strftime("%A, %d %b")
 
     prompt = f"""
-    Role: Expert Vegetarian Indian Home Chef.
+    You are an expert Vegetarian Indian Home Chef.
     Context: Planning meals for {date_display}. Weekend: {"Yes" if is_weekend else "No"}.
     Constraints: Vegetarian. NO {dislikes}. NO South Indian.
     Variety: RECENTLY EATEN: {past_str}. DO NOT REPEAT THESE. Use variety (Mushrooms, Corn, Soy, Kathal, etc).
     
     TASK: Generate a menu AND a shopping list of main ingredients required for all 3 meals combined.
     
-    Output JSON: {{ 
+    Output STRICT JSON format only: {{ 
         "breakfast": {{ "dish": "", "desc": "", "calories": "" }}, 
         "lunch": {{ "dish": "", "desc": "", "calories": "" }}, 
         "dinner": {{ "dish": "", "desc": "", "calories": "" }}, 
@@ -289,13 +222,21 @@ def generate_menu_ai():
         </div>
     """, unsafe_allow_html=True)
     
-    text_resp = call_gemini_direct(prompt)
+    # CALL CLAUDE
+    text_resp = call_claude_api(prompt)
     loading_placeholder.empty()
     
     if text_resp:
-        try: return json.loads(text_resp.replace("```json", "").replace("```", "").strip())
+        try: 
+            # Claude sometimes adds text before json, so we clean it
+            start = text_resp.find('{')
+            end = text_resp.rfind('}') + 1
+            if start != -1 and end != -1:
+                json_str = text_resp[start:end]
+                return json.loads(json_str)
+            else:
+                return json.loads(text_resp)
         except: st.error("Chef's handwriting was messy. Try again.")
-    else: st.error("Ammy is unreachable right now. Please check API Key.")
     return None
 
 if not current_menu:
@@ -306,7 +247,7 @@ if not current_menu:
             st.session_state.meal_plans[selected_date_str] = menu_data
             st.rerun()
 else:
-    # Render Cards with RELIABLE IMAGES
+    # Render Cards with RELIABLE STATIC IMAGES
     def render_card(meal_type, data):
         dish_name = data.get('dish', 'Food')
         meal_key = meal_type.lower()
@@ -366,30 +307,32 @@ else:
                 st.session_state.meal_plans[selected_date_str] = menu_data
                 st.rerun()
 
-    # --- NEW PRETTIER INPUT SECTION ---
+    # --- PRETTIER INPUT SECTION ---
     st.markdown("---")
     
-    # Using a container with a form for a clean input + submit feel
     with st.container():
         with st.form(key='custom_request', clear_on_submit=True):
-            # Column layout: Input takes 80%, Button takes 20%
             col_in, col_btn = st.columns([5, 1], gap="small")
             with col_in:
                 text_req = st.text_input("Request", 
                                        placeholder="✨ E.g. Swap lunch for a salad, or make dinner spicy...", 
                                        label_visibility="collapsed")
             with col_btn:
-                # Primary button that looks like a 'Send' action
                 submitted = st.form_submit_button("➤", type="primary", use_container_width=True)
 
     if submitted and text_req:
         with st.spinner("Adjusting menu..."):
             curr = json.dumps(current_menu)
-            p = f"Update menu: {curr}. Request: {text_req}. Return valid JSON with 'ingredients' list updated."
-            text_response = call_gemini_direct(p)
+            p = f"Update this menu JSON: {curr}. User Request: {text_req}. Return valid JSON with 'ingredients' list updated."
+            
+            # CALL CLAUDE FOR UPDATE
+            text_response = call_claude_api(p)
+            
             if text_response:
                 try:
-                    clean_json = text_response.replace("```json", "").replace("```", "").strip()
+                    start = text_response.find('{')
+                    end = text_response.rfind('}') + 1
+                    clean_json = text_response[start:end]
                     new_data = json.loads(clean_json)
                     st.session_state.meal_plans[selected_date_str] = new_data
                     st.rerun()
