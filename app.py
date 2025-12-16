@@ -7,8 +7,8 @@ import time
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="Mumbai Meal Planner",
-    page_icon="🍛",
+    page_title="Mom's Prudence",
+    page_icon="🍲",
     layout="centered",
     initial_sidebar_state="collapsed"
 )
@@ -20,29 +20,69 @@ DEFAULT_PREFERENCES = {
     "diet": "Vegetarian"
 }
 
-# --- 2. CSS STYLING ---
+# --- 2. CSS STYLING (Mobile Responsive) ---
 st.markdown("""
     <style>
     .stApp { background-color: #F8F9FA; font-family: 'Helvetica Neue', sans-serif; }
     
-    /* Calendar Strip */
-    .calendar-strip { display: flex; justify-content: space-between; background: white; padding: 15px; border-radius: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
-    .date-card { text-align: center; padding: 5px 10px; border-radius: 10px; cursor: pointer; }
-    .date-card.active { background-color: #FF4B4B; color: white; font-weight: bold; }
-    .date-card .day { font-size: 0.8em; color: #888; }
-    .date-card.active .day { color: #eee; }
-    
-    /* Food Card */
-    .food-card { background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 20px; }
-    .food-img-container { height: 180px; overflow: hidden; background-color: #eee; }
-    .food-img { width: 100%; height: 100%; object-fit: cover; }
+    /* Food Card - Mobile Optimized */
+    .food-card { 
+        background: white; 
+        border-radius: 15px; 
+        overflow: hidden; 
+        box-shadow: 0 4px 10px rgba(0,0,0,0.08); 
+        margin-bottom: 15px; 
+        border: 1px solid #f0f0f0;
+    }
+    .food-img-container { 
+        height: 160px; 
+        overflow: hidden; 
+        background-color: #eee; 
+        position: relative;
+    }
+    .food-img { 
+        width: 100%; 
+        height: 100%; 
+        object-fit: cover; 
+    }
     .food-details { padding: 15px; }
-    .food-title { font-size: 1.2em; font-weight: bold; color: #333; margin-bottom: 5px; }
-    .food-desc { font-size: 0.9em; color: #666; }
-    .meal-badge { background-color: #FFE5E5; color: #FF4B4B; padding: 4px 10px; border-radius: 12px; font-size: 0.7em; font-weight: bold; text-transform: uppercase; display: inline-block; margin-bottom: 8px; }
+    .food-title { 
+        font-size: 1.1em; 
+        font-weight: 700; 
+        color: #2c3e50; 
+        margin-bottom: 5px; 
+    }
+    .food-desc { 
+        font-size: 0.85em; 
+        color: #7f8c8d; 
+        line-height: 1.4;
+    }
+    .meal-badge { 
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background-color: rgba(255, 255, 255, 0.9); 
+        color: #e74c3c; 
+        padding: 4px 10px; 
+        border-radius: 20px; 
+        font-size: 0.7em; 
+        font-weight: bold; 
+        text-transform: uppercase; 
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
     
+    /* Hide default elements */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
+    .stDeployButton {display:none;}
+    
+    /* Custom Date Buttons Styling hack */
+    div[data-testid="stHorizontalBlock"] button {
+        border-radius: 10px;
+        height: 60px;
+        border: none;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -59,17 +99,20 @@ def save_memory(prefs):
 
 def get_food_image_url(dish_name):
     clean_name = dish_name.split('+')[0].strip().replace(" ", "%20")
+    # Using a reliable image source
     return f"https://image.pollinations.ai/prompt/delicious%20indian%20food%20{clean_name}%20high%20quality%20photography?width=400&height=300&nologo=true"
 
-# --- 4. THE ROBUST API CALL (With Waterfall Retry) ---
+# --- 4. THE ROBUST API CALL (Expanded Waterfall) ---
 def call_gemini_direct(prompt_text):
     api_key = st.secrets["GEMINI_API_KEY"]
     
-    # LIST OF MODELS TO TRY (If one is busy, try the next)
+    # Priority List: Flash 2.0 -> Flash 1.5 8b (Fast/Light) -> Flash 1.5 (Standard)
+    # The "8b" model is specifically designed for high availability and low latency.
     models_waterfall = [
-        "gemini-2.5-flash", 
         "gemini-2.0-flash", 
-        "gemini-1.5-flash"
+        "gemini-1.5-flash-8b", 
+        "gemini-1.5-flash",
+        "gemini-2.0-flash-lite-preview-02-05" 
     ]
     
     headers = {"Content-Type": "application/json"}
@@ -77,35 +120,41 @@ def call_gemini_direct(prompt_text):
         "contents": [{"parts": [{"text": prompt_text}]}]
     }
 
+    last_error = ""
+
     for model in models_waterfall:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
         
         try:
-            # st.write(f"Trying model: {model}...") # Uncomment to see which model is working
-            response = requests.post(url, headers=headers, json=payload)
+            # Short timeout to fail fast and switch models
+            response = requests.post(url, headers=headers, json=payload, timeout=10)
             
             if response.status_code == 200:
-                # Success!
                 data = response.json()
                 if "candidates" in data and data["candidates"]:
                     return data["candidates"][0]["content"]["parts"][0]["text"]
             elif response.status_code == 503:
-                # Busy, continue to next model loop
+                last_error = f"{model} Busy"
+                time.sleep(0.5) # Brief pause before next model
                 continue
             else:
-                # Error other than busy? Keep trying others just in case
+                last_error = f"{model} Error {response.status_code}"
                 continue 
         except Exception as e:
+            last_error = str(e)
             continue
             
-    st.error("⚠️ All Chef models are busy right now. Please wait 10 seconds and try again.")
+    st.error(f"⚠️ Chef is very popular right now! All AI models busy. ({last_error}). Please try again in 5 seconds.")
     return None
 
-# --- 5. APP LOGIC ---
+# --- 5. APP LOGIC & STATE ---
 if 'preferences' not in st.session_state:
     st.session_state.preferences = load_memory()
-if 'generated_menu' not in st.session_state:
-    st.session_state.generated_menu = None
+
+# Store plans by DATE KEY (e.g., "2023-10-27": {menu_data})
+if 'meal_plans' not in st.session_state:
+    st.session_state.meal_plans = {} 
+
 if 'selected_date' not in st.session_state:
     st.session_state.selected_date = datetime.date.today()
 
@@ -122,29 +171,42 @@ with st.sidebar:
             st.rerun()
 
 # --- 6. MAIN UI ---
-st.markdown("### 🥗 Mumbai Family Meal Planner")
+st.markdown("### 🥘 Mom's Prudence")
 
-# Calendar Strip
+# --- CLICKABLE CALENDAR STRIP ---
+# We display next 5 days.
 cols = st.columns(5)
 today = datetime.date.today()
-days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-for i, col in enumerate(cols):
+days_lookahead = 5
+
+for i in range(days_lookahead):
     day_date = today + datetime.timedelta(days=i)
+    date_key = str(day_date)
+    
+    # Label formatting
+    day_name = day_date.strftime("%a") # Mon
+    day_num = day_date.strftime("%d")  # 16
+    
+    # Determine button style
     is_selected = (day_date == st.session_state.selected_date)
-    style_class = "date-card active" if is_selected else "date-card"
-    with col:
-        st.markdown(f"""
-            <div class="{style_class}">
-                <div class="day">{days[day_date.weekday()]}</div>
-                <div class="date">{day_date.day}</div>
-            </div>
-        """, unsafe_allow_html=True)
+    btn_type = "primary" if is_selected else "secondary"
+    
+    with cols[i]:
+        # The button acts as the date selector
+        if st.button(f"{day_name}\n{day_num}", key=f"btn_{date_key}", type=btn_type, use_container_width=True):
+            st.session_state.selected_date = day_date
+            st.rerun()
 
 st.markdown("---")
+
+# --- DISPLAY LOGIC ---
+selected_date_str = str(st.session_state.selected_date)
+current_menu = st.session_state.meal_plans.get(selected_date_str)
 
 def generate_menu_ai():
     dislikes = ", ".join(st.session_state.preferences["dislikes"])
     is_weekend = st.session_state.selected_date.weekday() >= 5
+    date_display = st.session_state.selected_date.strftime("%A, %d %b")
     
     prompt = f"""
     You are a smart family cook for 3 vegetarians in Mumbai. 
@@ -155,7 +217,7 @@ def generate_menu_ai():
     4. STYLE: Home-cooked North Indian/Mumbai style. 
     
     CONTEXT:
-    - Today is: {st.session_state.selected_date.strftime("%A")}
+    - Planning for: {date_display}
     - Weekend Mode: {"YES (Remind to check headcount)" if is_weekend else "NO"}
     
     TASK:
@@ -170,35 +232,38 @@ def generate_menu_ai():
     }}
     """
     
-    with st.spinner("👨‍🍳 Chef is thinking..."):
+    with st.spinner(f"Planning meals for {date_display}..."):
         text_response = call_gemini_direct(prompt)
         if text_response:
             try:
-                # Clean up json markdown if present
                 clean_json = text_response.replace("```json", "").replace("```", "").strip()
                 return json.loads(clean_json)
             except json.JSONDecodeError:
-                st.error("Chef's handwriting was messy (JSON Error). Try again.")
+                st.error("Chef's handwriting was messy. Try again.")
                 return None
         return None
 
-if st.button("✨ Plan My Day", type="primary", use_container_width=True):
-    menu_data = generate_menu_ai()
-    if menu_data:
-        st.session_state.generated_menu = menu_data
-
-if st.session_state.generated_menu:
-    menu = st.session_state.generated_menu
-    
+# Generate Button (Only show if no menu exists for this date)
+if not current_menu:
+    st.info(f"No plan yet for {st.session_state.selected_date.strftime('%A')}.")
+    if st.button("✨ Plan This Day", type="primary", use_container_width=True):
+        menu_data = generate_menu_ai()
+        if menu_data:
+            st.session_state.meal_plans[selected_date_str] = menu_data
+            st.rerun()
+else:
+    # --- RENDER MENU CARDS ---
     def render_card(meal_type, data):
         dish_name = data.get('dish', 'Food')
         image_url = get_food_image_url(dish_name)
         
         st.markdown(f"""
         <div class="food-card">
-            <div class="food-img-container"><img src="{image_url}" class="food-img"></div>
-            <div class="food-details">
+            <div class="food-img-container">
+                <img src="{image_url}" class="food-img">
                 <span class="meal-badge">{meal_type}</span>
+            </div>
+            <div class="food-details">
                 <div class="food-title">{dish_name}</div>
                 <div class="food-desc">{data.get('desc', '')}</div>
                 <div style="margin-top: 10px; font-size: 0.8em; color: #888;">🔥 {data.get('calories', 'N/A')} • 🌿 Veg</div>
@@ -206,23 +271,35 @@ if st.session_state.generated_menu:
         </div>
         """, unsafe_allow_html=True)
 
-    render_card("Breakfast", menu.get('breakfast', {}))
-    render_card("Lunch", menu.get('lunch', {}))
-    render_card("Dinner", menu.get('dinner', {}))
+    render_card("Breakfast", current_menu.get('breakfast', {}))
+    render_card("Lunch", current_menu.get('lunch', {}))
+    render_card("Dinner", current_menu.get('dinner', {}))
     
-    if "message" in menu:
-        st.info(f"💡 {menu['message']}")
+    if "message" in current_menu:
+        st.info(f"💡 {current_menu['message']}")
+
+    # Regenerate Button
+    if st.button("🔄 Regenerate Menu", use_container_width=True):
+        menu_data = generate_menu_ai()
+        if menu_data:
+            st.session_state.meal_plans[selected_date_str] = menu_data
+            st.rerun()
 
 st.markdown("### 🗣️ Talk to the Chef")
-feedback = st.chat_input("Ex: 'I don't want Pasta, give me something Indian'")
-if feedback and st.session_state.generated_menu:
+feedback = st.chat_input("Ex: 'Change lunch to Rajma Chawal'")
+
+if feedback and current_menu:
     with st.spinner("Adjusting menu..."):
-        prompt = f"Update menu based on feedback: {feedback}. Previous Menu: {json.dumps(st.session_state.generated_menu)}. Output JSON only."
+        # We need to construct the prompt manually for the update
+        current_menu_json = json.dumps(current_menu)
+        prompt = f"Update this menu: {current_menu_json}. User Request: {feedback}. Output valid JSON only."
+        
         text_response = call_gemini_direct(prompt)
         if text_response:
             try:
                 clean_json = text_response.replace("```json", "").replace("```", "").strip()
-                st.session_state.generated_menu = json.loads(clean_json)
+                new_data = json.loads(clean_json)
+                st.session_state.meal_plans[selected_date_str] = new_data
                 st.rerun()
             except:
                 st.error("Could not understand the update.")
