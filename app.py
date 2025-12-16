@@ -23,7 +23,7 @@ DEFAULT_PREFERENCES = {
     "diet": "Vegetarian"
 }
 
-# Reliable, high-quality static images
+# Reliable, high-quality static images (FALLBACK)
 MEAL_IMAGES = {
     "breakfast": "https://images.unsplash.com/photo-1589302168068-964664d93dc0?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
     "lunch": "https://images.unsplash.com/photo-1546833999-b9f581a1996d?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
@@ -108,7 +108,11 @@ def text_to_speech(menu_json):
             return fp.name
     except: return None
 
-# --- 5. CLAUDE API FUNCTION ---
+# ==========================================
+# --- 5. API FUNCTIONS (TEXT & IMAGE) ---
+# ==========================================
+
+# A. CLAUDE TEXT API (Haiku 3.5)
 def call_claude_api(prompt_text):
     try:
         api_key = st.secrets["CLAUDE_API_KEY"]
@@ -123,13 +127,10 @@ def call_claude_api(prompt_text):
         "content-type": "application/json"
     }
     
-    # Using Claude 3.5 Haiku
     payload = {
         "model": "claude-3-5-haiku-20241022",
         "max_tokens": 1024,
-        "messages": [
-            {"role": "user", "content": prompt_text}
-        ]
+        "messages": [{"role": "user", "content": prompt_text}]
     }
 
     try:
@@ -144,7 +145,77 @@ def call_claude_api(prompt_text):
         st.error(f"Connection Error: {e}")
         return None
 
+# B. GEMINI IMAGE API (gemini-2.0-flash-exp)
+def call_gemini_image_api(prompt_text):
+    try:
+        # IMPORTANT: Get the separate Gemini Image Key from secrets
+        api_key = st.secrets["GEMINI_IMAGE_KEY"]
+    except:
+        # Fail silently so fallback can take over, but log to console
+        print("Missing GEMINI_IMAGE_KEY in secrets.")
+        return None
+
+    # Using the specific experimental model endpoint
+    model = "gemini-2.0-flash-exp-image-generation"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:predict"
+    
+    headers = {
+        "Content-Type": "application/json",
+        "x-goog-api-key": api_key
+    }
+    
+    # Standard payload structure for Google Image models
+    payload = {
+        "instances": [
+            {
+                "prompt": prompt_text,
+                 # 4:3 aspect ratio fits cards better
+                "parameters": {"aspectRatio": "4:3"}
+            }
+        ]
+    }
+
+    try:
+        # 30 second timeout for image generation
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
+        if response.status_code == 200:
+            result = response.json()
+            # Extract base64 data. Structure varies, checking common locations.
+            if 'predictions' in result and result['predictions']:
+                 prediction = result['predictions'][0]
+                 # Check for standard base64 field
+                 if 'bytesBase64Encoded' in prediction:
+                     return prediction['bytesBase64Encoded']
+                 # Check for alternative format
+                 elif 'image' in prediction and 'b64' in prediction['image']:
+                     return prediction['image']['b64']
+        # If status isn't 200 or structure is wrong, return None to trigger fallback
+        return None
+    except Exception:
+        return None
+
+# C. CACHED IMAGE WRAPPER (Handles caching and data URI formatting)
+@st.cache_data(show_spinner=False, ttl=3600*24) # Cache for 24 hours
+def get_food_image(dish_name):
+    if not dish_name or dish_name == 'Food':
+         return None
+
+    clean_name = dish_name.split('+')[0].strip()
+    # Detailed prompt for better results
+    prompt = f"A delicious, professional food photography shot of the vegetarian Indian dish '{clean_name}', served in an authentic setting. Cinematic lighting, high resolution, appetizing."
+
+    base64_data = call_gemini_image_api(prompt)
+
+    if base64_data:
+        # Success: Return formatted data URI
+        return f"data:image/jpeg;base64,{base64_data}"
+    else:
+        # Failure: Return None to trigger static fallback
+        return None
+
+# ==========================================
 # --- 6. STATE & DATE FIX ---
+# ==========================================
 if 'preferences' not in st.session_state: st.session_state.preferences = load_memory()
 if 'meal_plans' not in st.session_state: st.session_state.meal_plans = {} 
 
@@ -250,16 +321,27 @@ if not current_menu:
             st.session_state.meal_plans[selected_date_str] = menu_data
             st.rerun()
 else:
-    # Render Cards
+    # Render Cards with GEMINI AI IMAGES + FALLBACK
     def render_card(meal_type, data):
         dish_name = data.get('dish', 'Food')
         meal_key = meal_type.lower()
-        image_url = MEAL_IMAGES.get(meal_key, MEAL_IMAGES["default"])
+        
+        # 1. Try to get AI Image (Cached)
+        # We use a spinner here as it might take a moment the first time
+        with st.spinner(f"Garnishing {meal_key}..."):
+             ai_image_url = get_food_image(dish_name)
+
+        # 2. Determine final image URL (AI or Fallback)
+        if ai_image_url:
+            final_image_url = ai_image_url
+        else:
+            # Fallback to static image if AI failed
+            final_image_url = MEAL_IMAGES.get(meal_key, MEAL_IMAGES["default"])
 
         st.markdown(f"""
             <div class="food-card">
                 <div class="food-img-container">
-                    <img src="{image_url}" class="food-img" alt="{meal_type}">
+                    <img src="{final_image_url}" class="food-img" alt="{meal_type}">
                     <span class="meal-badge">{meal_type}</span>
                 </div>
                 <div class="food-details">
@@ -308,6 +390,8 @@ else:
             menu_data = generate_menu_ai()
             if menu_data:
                 st.session_state.meal_plans[selected_date_str] = menu_data
+                # Clear image cache so new dishes get new images
+                st.cache_data.clear()
                 st.rerun()
 
     # --- INPUT SECTION ---
@@ -349,5 +433,7 @@ else:
                     clean_json = text_response[start:end]
                     new_data = json.loads(clean_json)
                     st.session_state.meal_plans[selected_date_str] = new_data
+                    # Clear image cache on update too
+                    st.cache_data.clear()
                     st.rerun()
                 except: st.error("Could not understand the update.")
