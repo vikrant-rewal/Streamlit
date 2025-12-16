@@ -37,13 +37,14 @@ st.markdown("""
     .food-img-container { 
         height: 180px; 
         overflow: hidden; 
-        background-color: #eee; 
+        background-color: #f4f4f4; 
         position: relative;
     }
     .food-img { 
         width: 100%; 
         height: 100%; 
         object-fit: cover; 
+        transition: opacity 0.3s ease-in-out;
     }
     .food-details { padding: 15px; }
     .food-title { 
@@ -98,16 +99,41 @@ def save_memory(prefs):
         json.dump(prefs, f)
 
 def get_food_image_url(dish_name):
-    # AI IMAGE GENERATION (Pollinations.ai)
-    # We add "vegetarian" and "authentic" to the prompt to avoid the "chicken" issue.
-    clean_name = dish_name.split('+')[0].strip()
-    prompt = f"authentic indian vegetarian food {clean_name}, delicious, cinematic lighting, 8k, no meat, detailed food photography"
+    # RELIABLE UNSPLASH IMAGES (Manually Curated IDs)
+    # These are verified to work and be vegetarian-safe.
+    dish_lower = dish_name.lower()
     
-    # URL encode the prompt
-    encoded_prompt = prompt.replace(" ", "%20")
-    return f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=400&height=300&nologo=true&seed={int(time.time())}"
+    if "poha" in dish_lower:
+        return "https://images.unsplash.com/photo-1595859703053-9366e632d5b6?auto=format&fit=crop&w=600&q=80"
+    elif "sandwich" in dish_lower:
+        return "https://images.unsplash.com/photo-1554433607-66b5efe9d304?auto=format&fit=crop&w=600&q=80"
+    elif "upma" in dish_lower:
+        return "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=600&q=80" # Healthy bowl placeholder
+    elif "puri" in dish_lower or "poori" in dish_lower:
+        return "https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=600&q=80"
+    elif "paratha" in dish_lower or "parantha" in dish_lower:
+        # A stack of roti/paratha (Safe, no meat)
+        return "https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?auto=format&fit=crop&w=600&q=80"
+    elif "pasta" in dish_lower:
+        return "https://images.unsplash.com/photo-1473093295043-cdd812d0e601?auto=format&fit=crop&w=600&q=80"
+    elif "rajma" in dish_lower:
+        return "https://images.unsplash.com/photo-1546833999-b9f5816029bd?auto=format&fit=crop&w=600&q=80"
+    elif "dal" in dish_lower:
+        return "https://images.unsplash.com/photo-1585937421612-70a008356f36?auto=format&fit=crop&w=600&q=80"
+    elif "paneer" in dish_lower:
+        # Generic rich curry
+        return "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?auto=format&fit=crop&w=600&q=80"
+    elif "rice" in dish_lower or "chawal" in dish_lower:
+        return "https://images.unsplash.com/photo-1516714435131-44d6b64dc6a2?auto=format&fit=crop&w=600&q=80"
+    elif "roti" in dish_lower or "chapati" in dish_lower or "phulka" in dish_lower:
+        return "https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?auto=format&fit=crop&w=600&q=80"
+    elif "salad" in dish_lower:
+        return "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=600&q=80"
+    
+    # Fallback: Beautiful Indian Thali (Safe)
+    return "https://images.unsplash.com/photo-1585937421612-70a008356f36?auto=format&fit=crop&w=600&q=80"
 
-# --- 4. THE ROBUST API CALL (Strictly from your JSON List) ---
+# --- 4. THE ROBUST API CALL ---
 def call_gemini_direct(prompt_text):
     api_key = st.secrets["GEMINI_API_KEY"]
     
@@ -264,7 +290,7 @@ else:
         st.markdown(f"""
         <div class="food-card">
             <div class="food-img-container">
-                <img src="{image_url}" class="food-img">
+                <img src="{image_url}" class="food-img" loading="lazy">
                 <span class="meal-badge">{meal_type}</span>
             </div>
             <div class="food-details">
