@@ -7,7 +7,6 @@ import time
 import random
 from gtts import gTTS
 import tempfile
-from streamlit_mic_recorder import mic_recorder
 
 # --- 1. PAGE CONFIGURATION ---
 st.set_page_config(
@@ -79,7 +78,10 @@ st.markdown("""
         height: 200px; 
         overflow: hidden; 
         position: relative;
-        background: #f0f0f0;
+        background: #f0f0f0; /* Light gray placeholder */
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
     .food-img { width: 100%; height: 100%; object-fit: cover; }
     
@@ -176,7 +178,8 @@ def text_to_speech(menu_json):
 # A. Image Generation (Imagen)
 def call_gemini_image_api(prompt_text):
     api_key = st.secrets["GEMINI_API_KEY"]
-    model = "imagen-3.0-generate-001"
+    # Using Google's state-of-the-art Imagen 3 model for best results
+    model = "gemini-2.5-flash-image"
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:predict"
     headers = { "Content-Type": "application/json", "x-goog-api-key": api_key }
     payload = {
@@ -193,7 +196,6 @@ def call_gemini_image_api(prompt_text):
 # B. Text Generation (Standard)
 def call_gemini_text_api(prompt_text):
     api_key = st.secrets["GEMINI_API_KEY"]
-    # Retained your specific model list
     models_waterfall = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-flash-lite", "gemini-flash-latest"]
     headers = {"Content-Type": "application/json"}
     payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
@@ -223,6 +225,7 @@ def get_food_image_data(dish_name):
     
     base64_data = call_gemini_image_api(prompt)
     if base64_data: return f"data:image/jpeg;base64,{base64_data}"
+    # Fallback image if generation fails
     return "https://via.placeholder.com/600x400?text=Image+Generation+Failed"
 
 # --- 6. STATE & SIDEBAR ---
@@ -277,7 +280,7 @@ def generate_menu_ai():
     
     date_display = st.session_state.selected_date.strftime("%A, %d %b")
 
-    # UPDATED PROMPT to ask for ingredients
+    # Prompt
     prompt = f"""
     Role: Expert Vegetarian Indian Home Chef.
     Context: Planning meals for {date_display}. Weekend: {"Yes" if is_weekend else "No"}.
@@ -299,7 +302,6 @@ def generate_menu_ai():
     loading_placeholder = st.empty()
     random_msg = random.choice(LOADING_MESSAGES)
     
-    # Display the animation
     loading_placeholder.markdown(f"""
         <div class="chef-loading">
             <div style="font-size: 3rem;">🥘</div>
@@ -335,7 +337,7 @@ else:
         html = f"""
         <div class="food-card">
             <div class="food-img-container">
-                <img src="{img_src}" class="food-img">
+                <img src="{img_src}" class="food-img" alt="{dish}" onerror="this.onerror=null;this.src='https://via.placeholder.com/600x400?text=Image+Not+Found';">
                 <span class="meal-badge">{meal}</span>
             </div>
             <div class="food-details">
@@ -350,7 +352,7 @@ else:
         """
         st.markdown(html, unsafe_allow_html=True)
 
-    # Use a spinner only for the images now, as the menu data is already loaded
+    # Spinner for images
     with st.spinner("Plating up the dishes (Generating Images)..."):
         c1, c2, c3 = st.columns(3)
         with c1: render_card("Breakfast", current_menu.get('breakfast', {}))
@@ -360,7 +362,7 @@ else:
     if "message" in current_menu:
         st.success(f"**Chef's Note:** {current_menu['message']}")
 
-    # --- INGREDIENTS SECTION (NEW) ---
+    # --- INGREDIENTS SECTION ---
     ingredients_list = current_menu.get('ingredients', [])
     if ingredients_list:
         st.markdown(f"""
@@ -391,11 +393,8 @@ else:
 st.markdown("---")
 st.markdown("### 💬 Ask Ammy")
 
-col_mic, col_text = st.columns([1, 5])
-with col_mic:
-    audio_blob = mic_recorder(start_prompt="🎙️", stop_prompt="🛑", key='mic')
-with col_text:
-    text_req = st.chat_input("Ex: Change dinner to something spicy...")
+# Cleaned up chat input section
+text_req = st.chat_input("Ex: Change dinner to something spicy, or swap lunch for a salad...")
 
 if text_req and current_menu:
     with st.spinner("Adjusting recipe..."):
@@ -406,6 +405,7 @@ if text_req and current_menu:
             try:
                 new_m = json.loads(resp.replace("```json", "").replace("```", "").strip())
                 st.session_state.meal_plans[selected_date_str] = new_m
+                # Clear image cache so new dishes get new images
                 st.cache_data.clear() 
                 st.rerun()
             except: st.error("Couldn't update.")
