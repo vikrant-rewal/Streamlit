@@ -101,16 +101,16 @@ def get_food_image_url(dish_name):
     clean_name = dish_name.split('+')[0].strip().replace(" ", "%20")
     return f"https://image.pollinations.ai/prompt/delicious%20indian%20food%20{clean_name}%20high%20quality%20photography?width=400&height=300&nologo=true"
 
-# --- 4. THE ROBUST API CALL (New Priority List) ---
+# --- 4. THE ROBUST API CALL (Strictly from your JSON List) ---
 def call_gemini_direct(prompt_text):
     api_key = st.secrets["GEMINI_API_KEY"]
     
-    # NEW PRIORITY: 2.5 Flash first (User request), then 1.5 Flash (Most Reliable)
+    # STRICT LIST from your provided JSON
     models_waterfall = [
-        "gemini-2.5-flash", 
-        "gemini-1.5-flash",
-        "gemini-2.0-flash", 
-        "gemini-1.5-flash-8b"
+        "gemini-2.5-flash",         # Primary
+        "gemini-2.0-flash",         # Stable Backup
+        "gemini-2.5-flash-lite",    # Lite Backup
+        "gemini-flash-latest"       # Alias Backup
     ]
     
     headers = {"Content-Type": "application/json"}
@@ -124,31 +124,30 @@ def call_gemini_direct(prompt_text):
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
         
         try:
-            # Increased timeout to 15s to give 2.5 Flash time to think
-            response = requests.post(url, headers=headers, json=payload, timeout=15)
+            # increased timeout for 2.5 models
+            response = requests.post(url, headers=headers, json=payload, timeout=20)
             
             if response.status_code == 200:
                 data = response.json()
                 if "candidates" in data and data["candidates"]:
                     return data["candidates"][0]["content"]["parts"][0]["text"]
             elif response.status_code == 429:
-                # 429 means "Too Many Requests" - we must wait before trying next model
                 last_error = f"{model} (Rate Limit)"
-                time.sleep(2) 
+                time.sleep(1) # Wait a bit before next model
                 continue
             elif response.status_code == 503:
-                # 503 means "Server Busy" - try next immediately
                 last_error = f"{model} (Busy)"
                 time.sleep(0.5)
                 continue
             else:
                 last_error = f"{model} Error {response.status_code}"
+                # If 404, model doesn't exist, try next immediately
                 continue 
         except Exception as e:
             last_error = str(e)
             continue
             
-    st.error(f"⚠️ Mom's Chef is busy! ({last_error}). Please wait 10 seconds and try again.")
+    st.error(f"⚠️ Mom's Chef is having trouble connecting ({last_error}). Please wait 10 seconds and try again.")
     return None
 
 # --- 5. APP LOGIC & STATE ---
