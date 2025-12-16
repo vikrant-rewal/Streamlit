@@ -108,7 +108,7 @@ def text_to_speech(menu_json):
             return fp.name
     except: return None
 
-# --- 5. CLAUDE API FUNCTION (HAIKU 3.5) ---
+# --- 5. CLAUDE API FUNCTION ---
 def call_claude_api(prompt_text):
     try:
         api_key = st.secrets["CLAUDE_API_KEY"]
@@ -148,16 +148,12 @@ def call_claude_api(prompt_text):
 if 'preferences' not in st.session_state: st.session_state.preferences = load_memory()
 if 'meal_plans' not in st.session_state: st.session_state.meal_plans = {} 
 
-# --- IST DATE FIX ---
-# We calculate 'today' based on Indian Standard Time (UTC+5:30)
+# IST Fix
 IST = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
 today_ist = datetime.datetime.now(IST).date()
 
 if 'selected_date' not in st.session_state: st.session_state.selected_date = today_ist
-
-# Ensure if the day rolled over, we don't stick to an old date
-if st.session_state.selected_date < today_ist:
-    st.session_state.selected_date = today_ist
+if st.session_state.selected_date < today_ist: st.session_state.selected_date = today_ist
 
 # Sidebar
 with st.sidebar:
@@ -240,8 +236,7 @@ def generate_menu_ai():
             start = text_resp.find('{')
             end = text_resp.rfind('}') + 1
             if start != -1 and end != -1:
-                json_str = text_resp[start:end]
-                return json.loads(json_str)
+                return json.loads(text_resp[start:end])
             else:
                 return json.loads(text_resp)
         except: st.error("Chef's handwriting was messy. Try again.")
@@ -331,7 +326,19 @@ else:
     if submitted and text_req:
         with st.spinner("Adjusting menu..."):
             curr = json.dumps(current_menu)
-            p = f"Update this menu JSON: {curr}. User Request: {text_req}. Return valid JSON with 'ingredients' list updated."
+            # STRICT Prompt to ensure valid JSON return even for partial updates
+            p = f"""
+            You are a JSON-only API. 
+            Current Menu JSON: {curr}
+            User Request: "{text_req}"
+            
+            Task:
+            1. Parse the User Request.
+            2. If they dislike a specific dish or ingredient (e.g., 'no kathal'), REPLACE that specific meal (Breakfast, Lunch, or Dinner) with a new, different vegetarian Indian option.
+            3. Update the 'ingredients' list to reflect the changes.
+            4. Keep the other meals unchanged unless requested.
+            5. RETURN ONLY THE VALID JSON. Do not write any introduction or explanation.
+            """
             
             text_response = call_claude_api(p)
             
