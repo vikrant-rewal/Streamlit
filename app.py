@@ -7,6 +7,7 @@ import time
 import random
 from gtts import gTTS
 import tempfile
+from streamlit_mic_recorder import mic_recorder
 
 # --- 1. PAGE CONFIGURATION ---
 st.set_page_config(
@@ -22,6 +23,15 @@ DEFAULT_PREFERENCES = {
     "dislikes": ["Mix Veg", "Broccoli", "Ghiya", "Bottle Gourd", "Idli", "Dosa", "Thalipeeth"],
     "diet": "Vegetarian"
 }
+
+# Reliable, high-quality static images for each meal type to guarantee loading.
+MEAL_IMAGES = {
+    "breakfast": "https://images.unsplash.com/photo-1589302168068-964664d93dc0?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=800&q=80",
+    "lunch": "https://images.unsplash.com/photo-1546833999-b9f581a1996d?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=800&q=80",
+    "dinner": "https://images.unsplash.com/photo-1585937421612-70a008356fbe?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=800&q=80",
+    "default": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=800&q=80"
+}
+
 
 # Fun loading messages
 LOADING_MESSAGES = [
@@ -78,11 +88,9 @@ st.markdown("""
         height: 200px; 
         overflow: hidden; 
         position: relative;
-        background: #f0f0f0; /* Light gray placeholder */
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        background: #f0f0f0;
     }
+    /* Ensure image covers area cleanly */
     .food-img { width: 100%; height: 100%; object-fit: cover; }
     
     .meal-badge { 
@@ -173,30 +181,11 @@ def text_to_speech(menu_json):
             return fp.name
     except: return None
 
-# --- 5. GEMINI API FUNCTIONS ---
-
-# A. Image Generation (Imagen)
-def call_gemini_image_api(prompt_text):
+# --- 5. GEMINI API FUNCTION (Robust) ---
+def call_gemini_direct(prompt_text):
     api_key = st.secrets["GEMINI_API_KEY"]
-    # Using Google's state-of-the-art Imagen 3 model for best results
-    model = "gemini-2.5-flash-image"
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:predict"
-    headers = { "Content-Type": "application/json", "x-goog-api-key": api_key }
-    payload = {
-        "instances": [{ "prompt": prompt_text }],
-        "parameters": { "aspectRatio": "4:3", "sampleCount": 1 }
-    }
-    try:
-        response = requests.post(url, headers=headers, json=payload, timeout=30)
-        if response.status_code == 200:
-            return response.json()['predictions'][0]['bytesBase64Encoded']
-    except: pass
-    return None
-
-# B. Text Generation (Standard)
-def call_gemini_text_api(prompt_text):
-    api_key = st.secrets["GEMINI_API_KEY"]
-    models_waterfall = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-flash-lite", "gemini-flash-latest"]
+    # Use stable model names
+    models_waterfall = ["gemini-1.5-flash", "gemini-pro", "gemini-1.0-pro"]
     headers = {"Content-Type": "application/json"}
     payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
 
@@ -213,20 +202,6 @@ def call_gemini_text_api(prompt_text):
                 continue
         except: continue
     return None
-
-# C. Cached Image Wrapper
-@st.cache_data(show_spinner=False, ttl=3600*24)
-def get_food_image_data(dish_name):
-    if not dish_name or dish_name == 'Unknown':
-        return "https://via.placeholder.com/600x400?text=No+Dish+Selected"
-    
-    clean_name = dish_name.split('+')[0].strip()
-    prompt = f"A delicious, professional food photography shot of vegetarian Indian dish {clean_name}, served in an authentic bowl, cinematic lighting, highly detailed, 4k resolution."
-    
-    base64_data = call_gemini_image_api(prompt)
-    if base64_data: return f"data:image/jpeg;base64,{base64_data}"
-    # Fallback image if generation fails
-    return "https://via.placeholder.com/600x400?text=Image+Generation+Failed"
 
 # --- 6. STATE & SIDEBAR ---
 if 'preferences' not in st.session_state: st.session_state.preferences = load_memory()
@@ -280,7 +255,6 @@ def generate_menu_ai():
     
     date_display = st.session_state.selected_date.strftime("%A, %d %b")
 
-    # Prompt
     prompt = f"""
     Role: Expert Vegetarian Indian Home Chef.
     Context: Planning meals for {date_display}. Weekend: {"Yes" if is_weekend else "No"}.
@@ -310,15 +284,15 @@ def generate_menu_ai():
     """, unsafe_allow_html=True)
     
     # Call API
-    text_resp = call_gemini_text_api(prompt)
+    text_resp = call_gemini_direct(prompt)
     
     # Clear animation
     loading_placeholder.empty()
     
     if text_resp:
         try: return json.loads(text_resp.replace("```json", "").replace("```", "").strip())
-        except: st.error("Parsing error. Try again.")
-    else: st.error("Ammy is unreachable. Check API Key.")
+        except: st.error("Chef's handwriting was messy. Try again.")
+    else: st.error("Ammy is unreachable right now. Please check API Key.")
     return None
 
 if not current_menu:
@@ -329,35 +303,34 @@ if not current_menu:
             st.session_state.meal_plans[selected_date_str] = menu_data
             st.rerun()
 else:
-    # Render Cards
-    def render_card(meal, data):
-        dish = data.get('dish', 'Unknown')
-        img_src = get_food_image_data(dish)
-        
-        html = f"""
-        <div class="food-card">
-            <div class="food-img-container">
-                <img src="{img_src}" class="food-img" alt="{dish}" onerror="this.onerror=null;this.src='https://via.placeholder.com/600x400?text=Image+Not+Found';">
-                <span class="meal-badge">{meal}</span>
-            </div>
-            <div class="food-details">
-                <div class="food-title">{dish}</div>
-                <div class="food-desc">{data.get('desc', '')}</div>
-                <div class="food-meta">
-                    <span>🔥 {data.get('calories', 'N/A')}</span>
-                    <span>🌿 Vegetarian</span>
+    # Render Cards with RELIABLE IMAGES
+    def render_card(meal_type, data):
+        dish_name = data.get('dish', 'Food')
+        # Select image based on meal type to guarantee loading
+        meal_key = meal_type.lower()
+        image_url = MEAL_IMAGES.get(meal_key, MEAL_IMAGES["default"])
+
+        st.markdown(f"""
+            <div class="food-card">
+                <div class="food-img-container">
+                    <img src="{image_url}" class="food-img" alt="{meal_type}">
+                    <span class="meal-badge">{meal_type}</span>
+                </div>
+                <div class="food-details">
+                    <div class="food-title">{dish_name}</div>
+                    <div class="food-desc">{data.get('desc', '')}</div>
+                    <div class="food-meta">
+                        <span>🔥 {data.get('calories', 'N/A')}</span>
+                        <span>🌿 Veg</span>
+                    </div>
                 </div>
             </div>
-        </div>
-        """
-        st.markdown(html, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
-    # Spinner for images
-    with st.spinner("Plating up the dishes (Generating Images)..."):
-        c1, c2, c3 = st.columns(3)
-        with c1: render_card("Breakfast", current_menu.get('breakfast', {}))
-        with c2: render_card("Lunch", current_menu.get('lunch', {}))
-        with c3: render_card("Dinner", current_menu.get('dinner', {}))
+    c1, c2, c3 = st.columns(3)
+    with c1: render_card("Breakfast", current_menu.get('breakfast', {}))
+    with c2: render_card("Lunch", current_menu.get('lunch', {}))
+    with c3: render_card("Dinner", current_menu.get('dinner', {}))
 
     if "message" in current_menu:
         st.success(f"**Chef's Note:** {current_menu['message']}")
@@ -380,32 +353,37 @@ else:
     c_btn1, c_btn2 = st.columns(2)
     with c_btn1:
         if st.button("🔊 Read Aloud", use_container_width=True):
-            audio = text_to_speech(current_menu)
-            if audio: st.audio(audio, format='audio/mp3', start_time=0)
+            with st.spinner("Generating audio..."):
+                audio_file = text_to_speech(current_menu)
+                if audio_file:
+                    st.audio(audio_file, format='audio/mp3', start_time=0)
     with c_btn2:
         if st.button("🔄 Shuffle Menu", use_container_width=True):
             menu_data = generate_menu_ai()
             if menu_data:
                 st.session_state.meal_plans[selected_date_str] = menu_data
-                st.cache_data.clear()
                 st.rerun()
 
 st.markdown("---")
 st.markdown("### 💬 Ask Ammy")
 
-# Cleaned up chat input section
-text_req = st.chat_input("Ex: Change dinner to something spicy, or swap lunch for a salad...")
+# AUDIO INPUT & TEXT INPUT
+c1, c2 = st.columns([1, 4])
+with c1:
+    # Kept the mic button UI but it doesn't process audio based on your request
+    st.write("🎤 (Disabled)") 
+with c2:
+    text_input = st.chat_input("Type your request here...")
 
-if text_req and current_menu:
-    with st.spinner("Adjusting recipe..."):
+if text_input and current_menu:
+    with st.spinner("Adjusting menu..."):
         curr = json.dumps(current_menu)
-        p = f"Update menu: {curr}. Request: {text_req}. Return valid JSON with 'ingredients' list updated."
-        resp = call_gemini_text_api(p)
-        if resp:
+        p = f"Update menu: {curr}. Request: {text_input}. Return valid JSON with 'ingredients' list updated."
+        text_response = call_gemini_direct(p)
+        if text_response:
             try:
-                new_m = json.loads(resp.replace("```json", "").replace("```", "").strip())
-                st.session_state.meal_plans[selected_date_str] = new_m
-                # Clear image cache so new dishes get new images
-                st.cache_data.clear() 
+                clean_json = text_response.replace("```json", "").replace("```", "").strip()
+                new_data = json.loads(clean_json)
+                st.session_state.meal_plans[selected_date_str] = new_data
                 st.rerun()
-            except: st.error("Couldn't update.")
+            except: st.error("Could not understand the update.")
