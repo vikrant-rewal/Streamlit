@@ -3,6 +3,7 @@ import requests
 import datetime
 import json
 import os
+import time
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
@@ -60,37 +61,45 @@ def get_food_image_url(dish_name):
     clean_name = dish_name.split('+')[0].strip().replace(" ", "%20")
     return f"https://image.pollinations.ai/prompt/delicious%20indian%20food%20{clean_name}%20high%20quality%20photography?width=400&height=300&nologo=true"
 
-# --- 4. THE DIRECT API CALL (Updated for Gemini 2.5) ---
+# --- 4. THE ROBUST API CALL (With Waterfall Retry) ---
 def call_gemini_direct(prompt_text):
     api_key = st.secrets["GEMINI_API_KEY"]
     
-    # UPDATED MODEL URL: Using gemini-2.5-flash from your list
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+    # LIST OF MODELS TO TRY (If one is busy, try the next)
+    models_waterfall = [
+        "gemini-2.5-flash", 
+        "gemini-2.0-flash", 
+        "gemini-1.5-flash"
+    ]
     
     headers = {"Content-Type": "application/json"}
     payload = {
         "contents": [{"parts": [{"text": prompt_text}]}]
     }
-    
-    try:
-        response = requests.post(url, headers=headers, json=payload)
+
+    for model in models_waterfall:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
         
-        if response.status_code != 200:
-            st.error(f"API Error ({response.status_code}): {response.text}")
-            return None
+        try:
+            # st.write(f"Trying model: {model}...") # Uncomment to see which model is working
+            response = requests.post(url, headers=headers, json=payload)
             
-        data = response.json()
-        
-        # Check if 'candidates' exists in response
-        if "candidates" not in data or not data["candidates"]:
-            st.error(f"No candidates returned. Full response: {data}")
-            return None
+            if response.status_code == 200:
+                # Success!
+                data = response.json()
+                if "candidates" in data and data["candidates"]:
+                    return data["candidates"][0]["content"]["parts"][0]["text"]
+            elif response.status_code == 503:
+                # Busy, continue to next model loop
+                continue
+            else:
+                # Error other than busy? Keep trying others just in case
+                continue 
+        except Exception as e:
+            continue
             
-        return data["candidates"][0]["content"]["parts"][0]["text"]
-        
-    except Exception as e:
-        st.error(f"Connection Error: {e}")
-        return None
+    st.error("⚠️ All Chef models are busy right now. Please wait 10 seconds and try again.")
+    return None
 
 # --- 5. APP LOGIC ---
 if 'preferences' not in st.session_state:
@@ -170,8 +179,6 @@ def generate_menu_ai():
                 return json.loads(clean_json)
             except json.JSONDecodeError:
                 st.error("Chef's handwriting was messy (JSON Error). Try again.")
-                # Optional: Show raw text for debugging
-                # st.write(text_response)
                 return None
         return None
 
