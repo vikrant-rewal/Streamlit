@@ -8,7 +8,7 @@ import time
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
     page_title="Mom's Prudence",
-    page_icon="🍲",
+    page_icon="🥘",
     layout="centered",
     initial_sidebar_state="collapsed"
 )
@@ -99,20 +99,18 @@ def save_memory(prefs):
 
 def get_food_image_url(dish_name):
     clean_name = dish_name.split('+')[0].strip().replace(" ", "%20")
-    # Using a reliable image source
     return f"https://image.pollinations.ai/prompt/delicious%20indian%20food%20{clean_name}%20high%20quality%20photography?width=400&height=300&nologo=true"
 
-# --- 4. THE ROBUST API CALL (Expanded Waterfall) ---
+# --- 4. THE ROBUST API CALL (New Priority List) ---
 def call_gemini_direct(prompt_text):
     api_key = st.secrets["GEMINI_API_KEY"]
     
-    # Priority List: Flash 2.0 -> Flash 1.5 8b (Fast/Light) -> Flash 1.5 (Standard)
-    # The "8b" model is specifically designed for high availability and low latency.
+    # NEW PRIORITY: 2.5 Flash first (User request), then 1.5 Flash (Most Reliable)
     models_waterfall = [
-        "gemini-2.0-flash", 
-        "gemini-1.5-flash-8b", 
+        "gemini-2.5-flash", 
         "gemini-1.5-flash",
-        "gemini-2.0-flash-lite-preview-02-05" 
+        "gemini-2.0-flash", 
+        "gemini-1.5-flash-8b"
     ]
     
     headers = {"Content-Type": "application/json"}
@@ -126,16 +124,22 @@ def call_gemini_direct(prompt_text):
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
         
         try:
-            # Short timeout to fail fast and switch models
-            response = requests.post(url, headers=headers, json=payload, timeout=10)
+            # Increased timeout to 15s to give 2.5 Flash time to think
+            response = requests.post(url, headers=headers, json=payload, timeout=15)
             
             if response.status_code == 200:
                 data = response.json()
                 if "candidates" in data and data["candidates"]:
                     return data["candidates"][0]["content"]["parts"][0]["text"]
+            elif response.status_code == 429:
+                # 429 means "Too Many Requests" - we must wait before trying next model
+                last_error = f"{model} (Rate Limit)"
+                time.sleep(2) 
+                continue
             elif response.status_code == 503:
-                last_error = f"{model} Busy"
-                time.sleep(0.5) # Brief pause before next model
+                # 503 means "Server Busy" - try next immediately
+                last_error = f"{model} (Busy)"
+                time.sleep(0.5)
                 continue
             else:
                 last_error = f"{model} Error {response.status_code}"
@@ -144,14 +148,13 @@ def call_gemini_direct(prompt_text):
             last_error = str(e)
             continue
             
-    st.error(f"⚠️ Chef is very popular right now! All AI models busy. ({last_error}). Please try again in 5 seconds.")
+    st.error(f"⚠️ Mom's Chef is busy! ({last_error}). Please wait 10 seconds and try again.")
     return None
 
 # --- 5. APP LOGIC & STATE ---
 if 'preferences' not in st.session_state:
     st.session_state.preferences = load_memory()
 
-# Store plans by DATE KEY (e.g., "2023-10-27": {menu_data})
 if 'meal_plans' not in st.session_state:
     st.session_state.meal_plans = {} 
 
@@ -174,7 +177,6 @@ with st.sidebar:
 st.markdown("### 🥘 Mom's Prudence")
 
 # --- CLICKABLE CALENDAR STRIP ---
-# We display next 5 days.
 cols = st.columns(5)
 today = datetime.date.today()
 days_lookahead = 5
@@ -183,16 +185,13 @@ for i in range(days_lookahead):
     day_date = today + datetime.timedelta(days=i)
     date_key = str(day_date)
     
-    # Label formatting
-    day_name = day_date.strftime("%a") # Mon
-    day_num = day_date.strftime("%d")  # 16
+    day_name = day_date.strftime("%a") 
+    day_num = day_date.strftime("%d")  
     
-    # Determine button style
     is_selected = (day_date == st.session_state.selected_date)
     btn_type = "primary" if is_selected else "secondary"
     
     with cols[i]:
-        # The button acts as the date selector
         if st.button(f"{day_name}\n{day_num}", key=f"btn_{date_key}", type=btn_type, use_container_width=True):
             st.session_state.selected_date = day_date
             st.rerun()
@@ -243,7 +242,7 @@ def generate_menu_ai():
                 return None
         return None
 
-# Generate Button (Only show if no menu exists for this date)
+# Generate Button 
 if not current_menu:
     st.info(f"No plan yet for {st.session_state.selected_date.strftime('%A')}.")
     if st.button("✨ Plan This Day", type="primary", use_container_width=True):
@@ -278,7 +277,6 @@ else:
     if "message" in current_menu:
         st.info(f"💡 {current_menu['message']}")
 
-    # Regenerate Button
     if st.button("🔄 Regenerate Menu", use_container_width=True):
         menu_data = generate_menu_ai()
         if menu_data:
@@ -290,7 +288,6 @@ feedback = st.chat_input("Ex: 'Change lunch to Rajma Chawal'")
 
 if feedback and current_menu:
     with st.spinner("Adjusting menu..."):
-        # We need to construct the prompt manually for the update
         current_menu_json = json.dumps(current_menu)
         prompt = f"Update this menu: {current_menu_json}. User Request: {feedback}. Output valid JSON only."
         
