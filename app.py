@@ -23,7 +23,7 @@ DEFAULT_PREFERENCES = {
     "diet": "Vegetarian"
 }
 
-# Reliable, high-quality static images (Claude doesn't generate images, so we use these)
+# Reliable, high-quality static images
 MEAL_IMAGES = {
     "breakfast": "https://images.unsplash.com/photo-1589302168068-964664d93dc0?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
     "lunch": "https://images.unsplash.com/photo-1546833999-b9f581a1996d?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
@@ -108,9 +108,8 @@ def text_to_speech(menu_json):
             return fp.name
     except: return None
 
-# --- 5. CLAUDE API FUNCTION (NEW) ---
+# --- 5. CLAUDE API FUNCTION (UPDATED FOR HAIKU 3.5) ---
 def call_claude_api(prompt_text):
-    # Using REST API to avoid needing extra dependencies installed
     try:
         api_key = st.secrets["CLAUDE_API_KEY"]
     except:
@@ -124,8 +123,9 @@ def call_claude_api(prompt_text):
         "content-type": "application/json"
     }
     
+    # Updated to Claude 3.5 Haiku (Latest fast model)
     payload = {
-        "model": "claude-3-5-sonnet-20241022", # Using the latest Sonnet
+        "model": "claude-3-5-haiku-20241022",
         "max_tokens": 1024,
         "messages": [
             {"role": "user", "content": prompt_text}
@@ -138,7 +138,7 @@ def call_claude_api(prompt_text):
             result = response.json()
             return result['content'][0]['text']
         else:
-            st.error(f"Claude Error: {response.status_code}")
+            st.error(f"Claude Error {response.status_code}: {response.text}")
             return None
     except Exception as e:
         st.error(f"Connection Error: {e}")
@@ -222,13 +222,11 @@ def generate_menu_ai():
         </div>
     """, unsafe_allow_html=True)
     
-    # CALL CLAUDE
     text_resp = call_claude_api(prompt)
     loading_placeholder.empty()
     
     if text_resp:
         try: 
-            # Claude sometimes adds text before json, so we clean it
             start = text_resp.find('{')
             end = text_resp.rfind('}') + 1
             if start != -1 and end != -1:
@@ -247,7 +245,7 @@ if not current_menu:
             st.session_state.meal_plans[selected_date_str] = menu_data
             st.rerun()
 else:
-    # Render Cards with RELIABLE STATIC IMAGES
+    # Render Cards
     def render_card(meal_type, data):
         dish_name = data.get('dish', 'Food')
         meal_key = meal_type.lower()
@@ -325,7 +323,6 @@ else:
             curr = json.dumps(current_menu)
             p = f"Update this menu JSON: {curr}. User Request: {text_req}. Return valid JSON with 'ingredients' list updated."
             
-            # CALL CLAUDE FOR UPDATE
             text_response = call_claude_api(p)
             
             if text_response:
