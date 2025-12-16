@@ -1,5 +1,5 @@
 import streamlit as st
-import google.generativeai as genai
+import requests
 import datetime
 import json
 import os
@@ -60,22 +60,37 @@ def get_food_image_url(dish_name):
     clean_name = dish_name.split('+')[0].strip().replace(" ", "%20")
     return f"https://image.pollinations.ai/prompt/delicious%20indian%20food%20{clean_name}%20high%20quality%20photography?width=400&height=300&nologo=true"
 
-# --- 4. APP LOGIC ---
+# --- 4. THE DIRECT API CALL (The Fix) ---
+def call_gemini_direct(prompt_text):
+    api_key = st.secrets["GEMINI_API_KEY"]
+    # We use the REST API endpoint directly to bypass library version issues
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "contents": [{"parts": [{"text": prompt_text}]}]
+    }
+    
+    response = requests.post(url, headers=headers, json=payload)
+    
+    if response.status_code != 200:
+        st.error(f"API Error ({response.status_code}): {response.text}")
+        return None
+        
+    try:
+        data = response.json()
+        return data["candidates"][0]["content"]["parts"][0]["text"]
+    except Exception as e:
+        st.error(f"Error parsing response: {e}")
+        return None
+
+# --- 5. APP LOGIC ---
 if 'preferences' not in st.session_state:
     st.session_state.preferences = load_memory()
 if 'generated_menu' not in st.session_state:
     st.session_state.generated_menu = None
 if 'selected_date' not in st.session_state:
     st.session_state.selected_date = datetime.date.today()
-
-# API Configuration
-try:
-    if "GEMINI_API_KEY" in st.secrets:
-        genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-    else:
-        st.warning("⚠️ API Key missing in Secrets.")
-except Exception as e:
-    st.error(f"API Error: {e}")
 
 # Sidebar
 with st.sidebar:
@@ -89,7 +104,7 @@ with st.sidebar:
             save_memory(st.session_state.preferences)
             st.rerun()
 
-# --- 5. MAIN UI ---
+# --- 6. MAIN UI ---
 st.markdown("### 🥗 Mumbai Family Meal Planner")
 
 # Calendar Strip
@@ -111,7 +126,6 @@ for i, col in enumerate(cols):
 st.markdown("---")
 
 def generate_menu_ai():
-    # DISLIKE STRING
     dislikes = ", ".join(st.session_state.preferences["dislikes"])
     is_weekend = st.session_state.selected_date.weekday() >= 5
     
@@ -140,22 +154,13 @@ def generate_menu_ai():
     """
     
     with st.spinner("👨‍🍳 Chef is thinking..."):
-        # TRY NEW MODEL FIRST
-        try:
-            model = genai.GenerativeModel('gemini-1.5-flash')
-            response = model.generate_content(prompt)
-            clean_json = response.text.replace("```json", "").replace("```", "")
-            return json.loads(clean_json)
-        except Exception as e:
-            # FALLBACK TO OLDER STABLE MODEL IF FLASH FAILS
+        text_response = call_gemini_direct(prompt)
+        if text_response:
             try:
-                st.warning("⚠️ Switching to Standard Chef (Gemini Pro)...")
-                model = genai.GenerativeModel('gemini-pro')
-                response = model.generate_content(prompt)
-                clean_json = response.text.replace("```json", "").replace("```", "")
+                clean_json = text_response.replace("```json", "").replace("```", "")
                 return json.loads(clean_json)
-            except Exception as e2:
-                st.error(f"Chef is offline. Error: {e2}")
+            except:
+                st.error("Chef's handwriting was messy. Try again.")
                 return None
 
 if st.button("✨ Plan My Day", type="primary", use_container_width=True):
@@ -191,12 +196,9 @@ st.markdown("### 🗣️ Talk to the Chef")
 feedback = st.chat_input("Ex: 'I don't want Pasta, give me something Indian'")
 if feedback and st.session_state.generated_menu:
     with st.spinner("Adjusting menu..."):
-        try:
-            model = genai.GenerativeModel('gemini-1.5-flash')
-            prompt = f"Update menu based on feedback: {feedback}. Previous Menu: {json.dumps(st.session_state.generated_menu)}. Output JSON only."
-            response = model.generate_content(prompt)
-            clean_json = response.text.replace("```json", "").replace("```", "")
+        prompt = f"Update menu based on feedback: {feedback}. Previous Menu: {json.dumps(st.session_state.generated_menu)}. Output JSON only."
+        text_response = call_gemini_direct(prompt)
+        if text_response:
+            clean_json = text_response.replace("```json", "").replace("```", "")
             st.session_state.generated_menu = json.loads(clean_json)
             st.rerun()
-        except:
-             st.error("Could not update. Try generating a new menu.")
