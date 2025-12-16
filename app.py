@@ -108,7 +108,7 @@ def text_to_speech(menu_json):
             return fp.name
     except: return None
 
-# --- 5. CLAUDE API FUNCTION (UPDATED FOR HAIKU 3.5) ---
+# --- 5. CLAUDE API FUNCTION (HAIKU 3.5) ---
 def call_claude_api(prompt_text):
     try:
         api_key = st.secrets["CLAUDE_API_KEY"]
@@ -123,7 +123,7 @@ def call_claude_api(prompt_text):
         "content-type": "application/json"
     }
     
-    # Updated to Claude 3.5 Haiku (Latest fast model)
+    # Using Claude 3.5 Haiku
     payload = {
         "model": "claude-3-5-haiku-20241022",
         "max_tokens": 1024,
@@ -144,11 +144,22 @@ def call_claude_api(prompt_text):
         st.error(f"Connection Error: {e}")
         return None
 
-# --- 6. STATE & SIDEBAR ---
+# --- 6. STATE & DATE FIX ---
 if 'preferences' not in st.session_state: st.session_state.preferences = load_memory()
 if 'meal_plans' not in st.session_state: st.session_state.meal_plans = {} 
-if 'selected_date' not in st.session_state: st.session_state.selected_date = datetime.date.today()
 
+# --- IST DATE FIX ---
+# We calculate 'today' based on Indian Standard Time (UTC+5:30)
+IST = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
+today_ist = datetime.datetime.now(IST).date()
+
+if 'selected_date' not in st.session_state: st.session_state.selected_date = today_ist
+
+# Ensure if the day rolled over, we don't stick to an old date
+if st.session_state.selected_date < today_ist:
+    st.session_state.selected_date = today_ist
+
+# Sidebar
 with st.sidebar:
     st.markdown("### ⚙️ Settings")
     st.write("**Dietary Restrictions**")
@@ -165,9 +176,8 @@ st.markdown("<div class='main-header'><h1>🍳 Ammy's Choice</h1><p>Home-cooked 
 
 # Date Selection
 cols = st.columns(5)
-today = datetime.date.today()
 for i in range(5):
-    day_date = today + datetime.timedelta(days=i)
+    day_date = today_ist + datetime.timedelta(days=i)
     date_key = str(day_date)
     is_selected = (day_date == st.session_state.selected_date)
     btn_type = "primary" if is_selected else "secondary"
@@ -305,7 +315,7 @@ else:
                 st.session_state.meal_plans[selected_date_str] = menu_data
                 st.rerun()
 
-    # --- PRETTIER INPUT SECTION ---
+    # --- INPUT SECTION ---
     st.markdown("---")
     
     with st.container():
