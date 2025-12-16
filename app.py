@@ -32,11 +32,11 @@ MEAL_IMAGES = {
 }
 
 LOADING_MESSAGES = [
-    "🥕 Chopping the freshest vegetables...",
-    "🍅 Simmering the sauces to perfection...",
-    "🥬 Picking the best leaves from the garden...",
-    "👨‍🍳 Claude is brainstorming your delicious day...",
-    "🥑 Did you know? Healthy fats fuel your brain!",
+    "🥕 Chopping the freshest Bhindi...",
+    "🍅 Simmering the Channa Masala...",
+    "🥬 Picking fresh Beans from the garden...",
+    "👨‍🍳 Claude is preparing a rich Shahi gravy...",
+    "🥑 Did you know? Chickpeas are packed with protein!",
     "🍋 Squeezing some zest into your life..."
 ]
 
@@ -148,14 +148,10 @@ def call_claude_api(prompt_text):
 # B. GEMINI IMAGE API (gemini-2.0-flash-exp)
 def call_gemini_image_api(prompt_text):
     try:
-        # IMPORTANT: Get the separate Gemini Image Key from secrets
         api_key = st.secrets["GEMINI_IMAGE_KEY"]
     except:
-        # Fail silently so fallback can take over, but log to console
-        print("Missing GEMINI_IMAGE_KEY in secrets.")
         return None
 
-    # Using the specific experimental model endpoint
     model = "gemini-2.0-flash-exp-image-generation"
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:predict"
     
@@ -164,54 +160,38 @@ def call_gemini_image_api(prompt_text):
         "x-goog-api-key": api_key
     }
     
-    # Standard payload structure for Google Image models
     payload = {
         "instances": [
             {
                 "prompt": prompt_text,
-                 # 4:3 aspect ratio fits cards better
                 "parameters": {"aspectRatio": "4:3"}
             }
         ]
     }
 
     try:
-        # 30 second timeout for image generation
         response = requests.post(url, headers=headers, json=payload, timeout=30)
         if response.status_code == 200:
             result = response.json()
-            # Extract base64 data. Structure varies, checking common locations.
             if 'predictions' in result and result['predictions']:
                  prediction = result['predictions'][0]
-                 # Check for standard base64 field
                  if 'bytesBase64Encoded' in prediction:
                      return prediction['bytesBase64Encoded']
-                 # Check for alternative format
                  elif 'image' in prediction and 'b64' in prediction['image']:
                      return prediction['image']['b64']
-        # If status isn't 200 or structure is wrong, return None to trigger fallback
         return None
     except Exception:
         return None
 
-# C. CACHED IMAGE WRAPPER (Handles caching and data URI formatting)
-@st.cache_data(show_spinner=False, ttl=3600*24) # Cache for 24 hours
+# C. CACHED IMAGE WRAPPER
+@st.cache_data(show_spinner=False, ttl=3600*24)
 def get_food_image(dish_name):
-    if not dish_name or dish_name == 'Food':
-         return None
-
+    if not dish_name or dish_name == 'Food': return None
     clean_name = dish_name.split('+')[0].strip()
-    # Detailed prompt for better results
-    prompt = f"A delicious, professional food photography shot of the vegetarian Indian dish '{clean_name}', served in an authentic setting. Cinematic lighting, high resolution, appetizing."
-
+    prompt = f"A delicious, professional food photography shot of the vegetarian Indian dish '{clean_name}', served in an authentic bowl or plate. Cinematic lighting, high resolution, appetizing."
     base64_data = call_gemini_image_api(prompt)
-
-    if base64_data:
-        # Success: Return formatted data URI
-        return f"data:image/jpeg;base64,{base64_data}"
-    else:
-        # Failure: Return None to trigger static fallback
-        return None
+    if base64_data: return f"data:image/jpeg;base64,{base64_data}"
+    return None
 
 # ==========================================
 # --- 6. STATE & DATE FIX ---
@@ -272,13 +252,19 @@ def generate_menu_ai():
     
     date_display = st.session_state.selected_date.strftime("%A, %d %b")
 
+    # --- UPDATED PROMPT: Softened Favorites ---
     prompt = f"""
     You are an expert Vegetarian Indian Home Chef.
     Context: Planning meals for {date_display}. Weekend: {"Yes" if is_weekend else "No"}.
-    Constraints: Vegetarian. NO {dislikes}. NO South Indian.
-    Variety: RECENTLY EATEN: {past_str}. DO NOT REPEAT THESE. Use variety (Mushrooms, Corn, Soy, Kathal, etc).
+    Constraints: Vegetarian. NO {dislikes}. NO South Indian (unless requested).
     
-    TASK: Generate a menu AND a shopping list of main ingredients required for all 3 meals combined.
+    VARIETY INSTRUCTIONS:
+    1. Do NOT repeat recently eaten: {past_str}.
+    2. USER FAVORITES (Highly Encouraged but not mandatory): Bhindi (Okra), Channa (Chickpeas), Rajma, Beans. Feel free to rotate these in frequently.
+    3. PANEER ROTATION: Don't just do simple Paneer. Rotate Shahi Paneer, Kadai Paneer, Paneer Lababdar, Matar Paneer.
+    4. Balance: Ensure a mix of Dry Sabzis and Gravies.
+    
+    TASK: Generate a menu AND a shopping list of main ingredients.
     
     Output STRICT JSON format only: {{ 
         "breakfast": {{ "dish": "", "desc": "", "calories": "" }}, 
@@ -326,16 +312,12 @@ else:
         dish_name = data.get('dish', 'Food')
         meal_key = meal_type.lower()
         
-        # 1. Try to get AI Image (Cached)
-        # We use a spinner here as it might take a moment the first time
         with st.spinner(f"Garnishing {meal_key}..."):
              ai_image_url = get_food_image(dish_name)
 
-        # 2. Determine final image URL (AI or Fallback)
         if ai_image_url:
             final_image_url = ai_image_url
         else:
-            # Fallback to static image if AI failed
             final_image_url = MEAL_IMAGES.get(meal_key, MEAL_IMAGES["default"])
 
         st.markdown(f"""
@@ -390,7 +372,6 @@ else:
             menu_data = generate_menu_ai()
             if menu_data:
                 st.session_state.meal_plans[selected_date_str] = menu_data
-                # Clear image cache so new dishes get new images
                 st.cache_data.clear()
                 st.rerun()
 
@@ -410,7 +391,6 @@ else:
     if submitted and text_req:
         with st.spinner("Adjusting menu..."):
             curr = json.dumps(current_menu)
-            # STRICT Prompt to ensure valid JSON return even for partial updates
             p = f"""
             You are a JSON-only API. 
             Current Menu JSON: {curr}
@@ -418,10 +398,10 @@ else:
             
             Task:
             1. Parse the User Request.
-            2. If they dislike a specific dish or ingredient (e.g., 'no kathal'), REPLACE that specific meal (Breakfast, Lunch, or Dinner) with a new, different vegetarian Indian option.
-            3. Update the 'ingredients' list to reflect the changes.
-            4. Keep the other meals unchanged unless requested.
-            5. RETURN ONLY THE VALID JSON. Do not write any introduction or explanation.
+            2. If they dislike a specific dish or ingredient (e.g., 'no kathal'), REPLACE that specific meal with a new vegetarian Indian option.
+            3. Update 'ingredients'.
+            4. Keep other meals unchanged unless requested.
+            5. RETURN ONLY THE VALID JSON. No intro/outro text.
             """
             
             text_response = call_claude_api(p)
@@ -433,7 +413,6 @@ else:
                     clean_json = text_response[start:end]
                     new_data = json.loads(clean_json)
                     st.session_state.meal_plans[selected_date_str] = new_data
-                    # Clear image cache on update too
                     st.cache_data.clear()
                     st.rerun()
                 except: st.error("Could not understand the update.")
