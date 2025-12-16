@@ -69,12 +69,11 @@ def save_memory(prefs):
 def get_food_image_url(dish_name):
     clean_name = dish_name.split('+')[0].strip()
     seed = int(time.time())
-    # Adding "no meat" and "authentic" heavily to the prompt
     prompt = f"authentic indian vegetarian food {clean_name}, delicious, cinematic lighting, 8k, no meat"
     encoded_prompt = prompt.replace(" ", "%20")
     return f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=400&height=300&nologo=true&seed={seed}"
 
-# --- 4. AUDIO FUNCTIONS ---
+# --- 4. AUDIO FUNCTIONS (Fixed) ---
 def text_to_speech(menu_json):
     date_str = st.session_state.selected_date.strftime("%A, %d %B")
     speech_text = f"Here is the plan for {date_str}. "
@@ -89,17 +88,24 @@ def text_to_speech(menu_json):
     except: return None
 
 def transcribe_audio(audio_bytes):
+    # This function uses Gemini to "listen" to the audio file
     api_key = st.secrets["GEMINI_API_KEY"]
-    model = "gemini-1.5-flash"
+    model = "gemini-1.5-flash" # 1.5 Flash handles audio very well
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
     
+    # Encode audio to Base64
     b64_data = base64.b64encode(audio_bytes).decode('utf-8')
     
     payload = {
         "contents": [{
             "parts": [
-                {"text": "Listen to this audio. Return ONLY the English text transcription of what the user asked for regarding food."},
-                {"inline_data": {"mime_type": "audio/wav", "data": b64_data}}
+                {"text": "Listen to this audio and write down exactly what the user is asking for regarding their food/meal plan."},
+                {
+                    "inline_data": {
+                        "mime_type": "audio/wav", 
+                        "data": b64_data
+                    }
+                }
             ]
         }]
     }
@@ -171,41 +177,15 @@ selected_date_str = str(st.session_state.selected_date)
 current_menu = st.session_state.meal_plans.get(selected_date_str)
 
 def generate_menu():
-    # 1. Retrieve Dislikes
     dislikes = ", ".join(st.session_state.preferences["dislikes"])
-    
-    # 2. Retrieve History (Last 5 Days)
-    history_dishes = []
-    current = st.session_state.selected_date
-    for i in range(1, 6): # Look back 5 days
-        past_date = str(current - datetime.timedelta(days=i))
-        if past_date in st.session_state.meal_plans:
-            plan = st.session_state.meal_plans[past_date]
-            history_dishes.append(plan.get('breakfast', {}).get('dish', ''))
-            history_dishes.append(plan.get('lunch', {}).get('dish', ''))
-            history_dishes.append(plan.get('dinner', {}).get('dish', ''))
-    
-    history_str = ", ".join(filter(None, history_dishes))
-
-    # 3. Construct Prompt with Repetition Guard
     prompt = f"""
     Act as a Mumbai family cook (Vegetarian). 
-    
-    CONSTRAINTS:
-    1. Diet: Vegetarian (No meat/eggs).
-    2. AVOID ingredients: {dislikes}.
-    3. NO South Indian (Idli/Dosa).
-    4. VARIETY RULE: Do NOT repeat any dishes from this list (History of last 5 days): [{history_str}].
-    5. WILDCARD: Occasionally include Mushroom Matar, Corn Palak, or Soya Chaap to break monotony.
-    
-    CONTEXT: Planning for {st.session_state.selected_date.strftime("%A, %d %b")}.
-    TASK: Create JSON menu (breakfast, lunch, dinner).
-    
-    OUTPUT JSON FORMAT: 
-    {{ "breakfast": {{ "dish": "...", "desc": "...", "calories": "..." }}, "lunch": {{ "dish": "...", "desc": "...", "calories": "..." }}, "dinner": {{ "dish": "...", "desc": "...", "calories": "..." }}, "message": "..." }}
+    Constraints: No meat/eggs. Avoid: {dislikes}. No South Indian.
+    Context: {st.session_state.selected_date.strftime("%A, %d %b")}.
+    Task: Create JSON menu (breakfast, lunch, dinner).
+    Format: {{ "breakfast": {{ "dish": "...", "desc": "...", "calories": "..." }}, "lunch": {{...}}, "dinner": {{...}}, "message": "..." }}
     """
-    
-    with st.spinner("Planning (checking history)..."):
+    with st.spinner("Planning..."):
         res = call_gemini_direct(prompt)
         if res:
             try: return json.loads(res.replace("```json", "").replace("```", "").strip())
@@ -266,7 +246,7 @@ if text_data:
 
 if final_input and current_menu:
     with st.spinner("Updating menu..."):
-        prompt = f"Update this menu JSON: {json.dumps(current_menu)}. User wants: {final_input}. Ensure NO meat/eggs. Return valid JSON."
+        prompt = f"Update this menu JSON: {json.dumps(current_menu)}. User wants: {final_input}. Return valid JSON."
         res = call_gemini_direct(prompt)
         if res:
             try:
