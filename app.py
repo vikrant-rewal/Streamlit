@@ -7,7 +7,6 @@ import time
 import random
 from gtts import gTTS
 import tempfile
-from streamlit_mic_recorder import mic_recorder
 
 # --- 1. PAGE CONFIGURATION ---
 st.set_page_config(
@@ -31,7 +30,6 @@ MEAL_IMAGES = {
     "dinner": "https://images.unsplash.com/photo-1585937421612-70a008356fbe?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=800&q=80",
     "default": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=800&q=80"
 }
-
 
 # Fun loading messages
 LOADING_MESSAGES = [
@@ -90,7 +88,6 @@ st.markdown("""
         position: relative;
         background: #f0f0f0;
     }
-    /* Ensure image covers area cleanly */
     .food-img { width: 100%; height: 100%; object-fit: cover; }
     
     .meal-badge { 
@@ -146,13 +143,25 @@ st.markdown("""
         100% { opacity: 0.6; }
     }
 
+    /* Input Styling */
+    .stTextInput input { 
+        border-radius: 30px; 
+        padding-left: 20px; 
+        border: 1px solid #eee;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+    }
+    .stTextInput input:focus {
+        border-color: #FF6B6B;
+        box-shadow: 0 2px 15px rgba(255, 107, 107, 0.1);
+    }
+
     /* UI Elements */
     div.stButton > button { border-radius: 12px; font-weight: 600; border: none; }
     div.stButton > button[kind="primary"] {
         background: linear-gradient(135deg, #FF6B6B 0%, #EE5253 100%);
         box-shadow: 0 4px 15px rgba(238, 82, 83, 0.4);
     }
-    .stTextInput input { border-radius: 12px; }
+    
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} .stDeployButton {display:none;}
     </style>
 """, unsafe_allow_html=True)
@@ -181,10 +190,9 @@ def text_to_speech(menu_json):
             return fp.name
     except: return None
 
-# --- 5. GEMINI API FUNCTION (Robust) ---
+# --- 5. GEMINI API FUNCTION ---
 def call_gemini_direct(prompt_text):
     api_key = st.secrets["GEMINI_API_KEY"]
-    # Use stable model names
     models_waterfall = ["gemini-1.5-flash", "gemini-pro", "gemini-1.0-pro"]
     headers = {"Content-Type": "application/json"}
     payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
@@ -243,7 +251,6 @@ def generate_menu_ai():
     dislikes = ", ".join(st.session_state.preferences["dislikes"])
     is_weekend = st.session_state.selected_date.weekday() >= 5
     
-    # History Logic
     past_dishes = []
     for i in range(1, 6):
         prev = st.session_state.selected_date - datetime.timedelta(days=i)
@@ -272,7 +279,6 @@ def generate_menu_ai():
     }}
     """
     
-    # --- CUSTOM LOADING ANIMATION ---
     loading_placeholder = st.empty()
     random_msg = random.choice(LOADING_MESSAGES)
     
@@ -283,10 +289,7 @@ def generate_menu_ai():
         </div>
     """, unsafe_allow_html=True)
     
-    # Call API
     text_resp = call_gemini_direct(prompt)
-    
-    # Clear animation
     loading_placeholder.empty()
     
     if text_resp:
@@ -306,7 +309,6 @@ else:
     # Render Cards with RELIABLE IMAGES
     def render_card(meal_type, data):
         dish_name = data.get('dish', 'Food')
-        # Select image based on meal type to guarantee loading
         meal_key = meal_type.lower()
         image_url = MEAL_IMAGES.get(meal_key, MEAL_IMAGES["default"])
 
@@ -335,7 +337,7 @@ else:
     if "message" in current_menu:
         st.success(f"**Chef's Note:** {current_menu['message']}")
 
-    # --- INGREDIENTS SECTION ---
+    # Ingredients
     ingredients_list = current_menu.get('ingredients', [])
     if ingredients_list:
         st.markdown(f"""
@@ -364,26 +366,31 @@ else:
                 st.session_state.meal_plans[selected_date_str] = menu_data
                 st.rerun()
 
-st.markdown("---")
-st.markdown("### 💬 Ask Ammy")
+    # --- NEW PRETTIER INPUT SECTION ---
+    st.markdown("---")
+    
+    # Using a container with a form for a clean input + submit feel
+    with st.container():
+        with st.form(key='custom_request', clear_on_submit=True):
+            # Column layout: Input takes 80%, Button takes 20%
+            col_in, col_btn = st.columns([5, 1], gap="small")
+            with col_in:
+                text_req = st.text_input("Request", 
+                                       placeholder="✨ E.g. Swap lunch for a salad, or make dinner spicy...", 
+                                       label_visibility="collapsed")
+            with col_btn:
+                # Primary button that looks like a 'Send' action
+                submitted = st.form_submit_button("➤", type="primary", use_container_width=True)
 
-# AUDIO INPUT & TEXT INPUT
-c1, c2 = st.columns([1, 4])
-with c1:
-    # Kept the mic button UI but it doesn't process audio based on your request
-    st.write("🎤 (Disabled)") 
-with c2:
-    text_input = st.chat_input("Type your request here...")
-
-if text_input and current_menu:
-    with st.spinner("Adjusting menu..."):
-        curr = json.dumps(current_menu)
-        p = f"Update menu: {curr}. Request: {text_input}. Return valid JSON with 'ingredients' list updated."
-        text_response = call_gemini_direct(p)
-        if text_response:
-            try:
-                clean_json = text_response.replace("```json", "").replace("```", "").strip()
-                new_data = json.loads(clean_json)
-                st.session_state.meal_plans[selected_date_str] = new_data
-                st.rerun()
-            except: st.error("Could not understand the update.")
+    if submitted and text_req:
+        with st.spinner("Adjusting menu..."):
+            curr = json.dumps(current_menu)
+            p = f"Update menu: {curr}. Request: {text_req}. Return valid JSON with 'ingredients' list updated."
+            text_response = call_gemini_direct(p)
+            if text_response:
+                try:
+                    clean_json = text_response.replace("```json", "").replace("```", "").strip()
+                    new_data = json.loads(clean_json)
+                    st.session_state.meal_plans[selected_date_str] = new_data
+                    st.rerun()
+                except: st.error("Could not understand the update.")
