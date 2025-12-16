@@ -35,7 +35,7 @@ LOADING_MESSAGES = [
     "🥕 Chopping the freshest Bhindi...",
     "🍅 Simmering the Channa Masala...",
     "🥬 Picking fresh Beans from the garden...",
-    "👨‍🍳 Claude is preparing a rich Shahi gravy...",
+    "👨‍🍳 Claude is preparing a rich Kofta gravy...",
     "🥑 Did you know? Chickpeas are packed with protein!",
     "🍋 Squeezing some zest into your life..."
 ]
@@ -241,6 +241,7 @@ def generate_menu_ai():
     dislikes = ", ".join(st.session_state.preferences["dislikes"])
     is_weekend = st.session_state.selected_date.weekday() >= 5
     
+    # Get History
     past_dishes = []
     for i in range(1, 6):
         prev = st.session_state.selected_date - datetime.timedelta(days=i)
@@ -252,16 +253,18 @@ def generate_menu_ai():
     
     date_display = st.session_state.selected_date.strftime("%A, %d %b")
 
-    # --- UPDATED PROMPT: Softened Favorites ---
+    # --- UPDATED PROMPT: STRICT PANEER ROTATION ---
     prompt = f"""
     You are an expert Vegetarian Indian Home Chef.
     Context: Planning meals for {date_display}. Weekend: {"Yes" if is_weekend else "No"}.
     Constraints: Vegetarian. NO {dislikes}. NO South Indian (unless requested).
     
-    VARIETY INSTRUCTIONS:
-    1. Do NOT repeat recently eaten: {past_str}.
-    2. USER FAVORITES (Highly Encouraged but not mandatory): Bhindi (Okra), Channa (Chickpeas), Rajma, Beans. Feel free to rotate these in frequently.
-    3. PANEER ROTATION: Don't just do simple Paneer. Rotate Shahi Paneer, Kadai Paneer, Paneer Lababdar, Matar Paneer.
+    VARIETY RULES (CRITICAL):
+    1. HISTORY CHECK: Recently eaten dishes: {past_str}.
+    2. PANEER FREQUENCY RULE: If "Paneer" appears in the Recently Eaten list, DO NOT serve Paneer for Dinner today. 
+       - Instead, serve rich alternatives like: Soy Chaap, Malai Kofta (Lauki/Veg), Rajma Masala, or Chole Bhature.
+       - Paneer should be on ALTERNATE days only.
+    3. USER FAVORITES: Frequently rotate in Bhindi (Okra), Channa, Rajma, and Beans.
     4. Balance: Ensure a mix of Dry Sabzis and Gravies.
     
     TASK: Generate a menu AND a shopping list of main ingredients.
