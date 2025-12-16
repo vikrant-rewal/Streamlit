@@ -60,28 +60,36 @@ def get_food_image_url(dish_name):
     clean_name = dish_name.split('+')[0].strip().replace(" ", "%20")
     return f"https://image.pollinations.ai/prompt/delicious%20indian%20food%20{clean_name}%20high%20quality%20photography?width=400&height=300&nologo=true"
 
-# --- 4. THE DIRECT API CALL (The Fix) ---
+# --- 4. THE DIRECT API CALL (Updated for Gemini 2.5) ---
 def call_gemini_direct(prompt_text):
     api_key = st.secrets["GEMINI_API_KEY"]
-    # We use the REST API endpoint directly to bypass library version issues
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    
+    # UPDATED MODEL URL: Using gemini-2.5-flash from your list
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
     
     headers = {"Content-Type": "application/json"}
     payload = {
         "contents": [{"parts": [{"text": prompt_text}]}]
     }
     
-    response = requests.post(url, headers=headers, json=payload)
-    
-    if response.status_code != 200:
-        st.error(f"API Error ({response.status_code}): {response.text}")
-        return None
-        
     try:
+        response = requests.post(url, headers=headers, json=payload)
+        
+        if response.status_code != 200:
+            st.error(f"API Error ({response.status_code}): {response.text}")
+            return None
+            
         data = response.json()
+        
+        # Check if 'candidates' exists in response
+        if "candidates" not in data or not data["candidates"]:
+            st.error(f"No candidates returned. Full response: {data}")
+            return None
+            
         return data["candidates"][0]["content"]["parts"][0]["text"]
+        
     except Exception as e:
-        st.error(f"Error parsing response: {e}")
+        st.error(f"Connection Error: {e}")
         return None
 
 # --- 5. APP LOGIC ---
@@ -157,11 +165,15 @@ def generate_menu_ai():
         text_response = call_gemini_direct(prompt)
         if text_response:
             try:
-                clean_json = text_response.replace("```json", "").replace("```", "")
+                # Clean up json markdown if present
+                clean_json = text_response.replace("```json", "").replace("```", "").strip()
                 return json.loads(clean_json)
-            except:
-                st.error("Chef's handwriting was messy. Try again.")
+            except json.JSONDecodeError:
+                st.error("Chef's handwriting was messy (JSON Error). Try again.")
+                # Optional: Show raw text for debugging
+                # st.write(text_response)
                 return None
+        return None
 
 if st.button("✨ Plan My Day", type="primary", use_container_width=True):
     menu_data = generate_menu_ai()
@@ -172,13 +184,15 @@ if st.session_state.generated_menu:
     menu = st.session_state.generated_menu
     
     def render_card(meal_type, data):
-        image_url = get_food_image_url(data.get('dish', 'Food'))
+        dish_name = data.get('dish', 'Food')
+        image_url = get_food_image_url(dish_name)
+        
         st.markdown(f"""
         <div class="food-card">
             <div class="food-img-container"><img src="{image_url}" class="food-img"></div>
             <div class="food-details">
                 <span class="meal-badge">{meal_type}</span>
-                <div class="food-title">{data.get('dish', 'Dish')}</div>
+                <div class="food-title">{dish_name}</div>
                 <div class="food-desc">{data.get('desc', '')}</div>
                 <div style="margin-top: 10px; font-size: 0.8em; color: #888;">🔥 {data.get('calories', 'N/A')} • 🌿 Veg</div>
             </div>
@@ -199,6 +213,9 @@ if feedback and st.session_state.generated_menu:
         prompt = f"Update menu based on feedback: {feedback}. Previous Menu: {json.dumps(st.session_state.generated_menu)}. Output JSON only."
         text_response = call_gemini_direct(prompt)
         if text_response:
-            clean_json = text_response.replace("```json", "").replace("```", "")
-            st.session_state.generated_menu = json.loads(clean_json)
-            st.rerun()
+            try:
+                clean_json = text_response.replace("```json", "").replace("```", "").strip()
+                st.session_state.generated_menu = json.loads(clean_json)
+                st.rerun()
+            except:
+                st.error("Could not understand the update.")
