@@ -76,7 +76,7 @@ def get_food_image_url(dish_name):
     encoded_prompt = prompt.replace(" ", "%20")
     return f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=400&height=300&nologo=true&seed={seed}"
 
-# --- 4. AUDIO FUNCTIONS (NEW) ---
+# --- 4. AUDIO FUNCTIONS ---
 def text_to_speech(menu_json):
     # 1. Create the script to read
     date_str = st.session_state.selected_date.strftime("%A, %d %B")
@@ -160,13 +160,43 @@ def generate_menu_ai():
     dislikes = ", ".join(st.session_state.preferences["dislikes"])
     is_weekend = st.session_state.selected_date.weekday() >= 5
     date_display = st.session_state.selected_date.strftime("%A, %d %b")
+    
+    # --- LOGIC UPDATE: Look back 5 days for repetition ---
+    past_dishes = []
+    # Check previous 5 days
+    for i in range(1, 6):
+        prev_date = st.session_state.selected_date - datetime.timedelta(days=i)
+        prev_key = str(prev_date)
+        if prev_key in st.session_state.meal_plans:
+            plan = st.session_state.meal_plans[prev_key]
+            # Safely get dish names if they exist
+            if 'breakfast' in plan: past_dishes.append(plan['breakfast'].get('dish', ''))
+            if 'lunch' in plan: past_dishes.append(plan['lunch'].get('dish', ''))
+            if 'dinner' in plan: past_dishes.append(plan['dinner'].get('dish', ''))
+            
+    # Remove empty strings and join unique values
+    past_dishes = list(filter(None, past_dishes))
+    past_history_str = ", ".join(set(past_dishes)) if past_dishes else "None"
+    
     prompt = f"""
     You are a smart family cook for 3 vegetarians in Mumbai. 
-    STRICT CONSTRAINTS: 1. Diet: Vegetarian. NO Meat, NO Eggs. 2. AVOID: {dislikes}. 3. NO South Indian. 4. STYLE: Home-cooked North Indian/Mumbai. 
+    
+    STRICT CONSTRAINTS: 
+    1. Diet: Vegetarian. NO Meat, NO Eggs. 
+    2. AVOID PERMANENTLY: {dislikes}. 
+    3. NO South Indian dishes.
+    
+    HISTORY & VARIETY CONTROL:
+    - **RECENTLY EATEN (DO NOT REPEAT):** {past_history_str}
+    - You must NOT repeat any main dish listed in "Recently Eaten".
+    - **WILDCARD RULE:** Introduce variety. Do not just stick to Paneer/Aloo. Include things like Mushrooms, Corn, Koftas, Soy, or different Lentils/Beans (Rajma/Chole/Lobia) if they haven't been eaten recently.
+    
     CONTEXT: Planning for: {date_display}. Weekend Mode: {"YES" if is_weekend else "NO"}
     TASK: Generate JSON for Breakfast, Lunch, Dinner.
-    OUTPUT JSON FORMAT: {{ "breakfast": {{ "dish": "Name", "desc": "Short description", "calories": "kcal" }}, "lunch": {{ "dish": "Name", "desc": "Short description", "calories": "kcal" }}, "dinner": {{ "dish": "Name", "desc": "Short description", "calories": "kcal" }}, "message": "Note" }}
+    
+    OUTPUT JSON FORMAT: {{ "breakfast": {{ "dish": "Name", "desc": "Short description", "calories": "kcal" }}, "lunch": {{ "dish": "Name", "desc": "Short description", "calories": "kcal" }}, "dinner": {{ "dish": "Name", "desc": "Short description", "calories": "kcal" }}, "message": "Note about why this variety is good" }}
     """
+    
     with st.spinner(f"Planning meals for {date_display}..."):
         text_resp = call_gemini_direct(prompt)
         if text_resp:
@@ -210,32 +240,15 @@ st.markdown("### 🗣️ Talk to the Chef")
 # AUDIO INPUT & TEXT INPUT
 c1, c2 = st.columns([1, 4])
 with c1:
-    # Microphone button
     audio_input = mic_recorder(start_prompt="🎤", stop_prompt="🛑", key='recorder')
 with c2:
-    # Standard text input
     text_input = st.chat_input("Type your request here...")
 
-# Determine final input source
 final_feedback = None
 if audio_input:
-    # Only try to transcribe if audio was actually recorded
-    with st.spinner("Transcribing speech..."):
-        # Simple transcription via Gemini (since we already have the setup)
-        # We send the raw bytes to Gemini for transcription
-        try:
-            model = "gemini-2.5-flash" # Use a fast model for transcription
-            api_key = st.secrets["GEMINI_API_KEY"]
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
-            headers = {"Content-Type": "application/json"}
-            # We convert audio bytes to a string representation for the prompt
-            # Note: A dedicated speech-to-text API is usually better, but this works for simple prototyping with existing keys.
-            prompt_text = f"Transcribe the following user request regarding food: {str(audio_input['bytes'][:100])}... (audio data truncated for brevity, assume user said: 'Change lunch to something spicy')"
-            # Ideally you would send audio bytes, but for simplicity in this setup we'll rely on text fallback or simulate transcription.
-            # Given the constraints, let's stick to text input for reliability until a dedicated STT service is configured.
-            st.warning("Real-time audio transcription requires a dedicated Speech-to-Text API setup. Please use the text box for now.")
-        except:
-             st.error("Audio processing failed.")
+    # Simple speech transcription placeholder logic
+    st.info("Audio received! (Transcription implementation depends on specific API needs)")
+    # For now, we rely on text input or need to implement actual STT here
 
 if text_input and current_menu:
     final_feedback = text_input
@@ -244,7 +257,8 @@ if text_input and current_menu:
 if final_feedback and current_menu:
     with st.spinner("Adjusting menu..."):
         current_menu_json = json.dumps(current_menu)
-        prompt = f"Update this menu: {current_menu_json}. User Request: {final_feedback}. Output valid JSON only."
+        # Update feedback prompt to also be aware of constraints
+        prompt = f"Update this menu: {current_menu_json}. User Request: {final_feedback}. Ensure Vegetarian. Output valid JSON only."
         text_response = call_gemini_direct(prompt)
         if text_response:
             try:
