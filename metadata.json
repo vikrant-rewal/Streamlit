@@ -1,0 +1,7 @@
+{
+  "name": "Copy of Mumbai Family Meal Planner",
+  "description": "A smart, vegetarian meal planner for a Mumbai family using Gemini to generate and refine daily menus based on dietary preferences.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
