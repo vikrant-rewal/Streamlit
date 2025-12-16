@@ -19,7 +19,7 @@ DEFAULT_PREFERENCES = {
     "diet": "Vegetarian"
 }
 
-# --- 2. CSS STYLING (Mobile App Look) ---
+# --- 2. CSS STYLING ---
 st.markdown("""
     <style>
     .stApp { background-color: #F8F9FA; font-family: 'Helvetica Neue', sans-serif; }
@@ -58,7 +58,6 @@ def save_memory(prefs):
 
 def get_food_image_url(dish_name):
     clean_name = dish_name.split('+')[0].strip().replace(" ", "%20")
-    # Pollinations AI for free generated images
     return f"https://image.pollinations.ai/prompt/delicious%20indian%20food%20{clean_name}%20high%20quality%20photography?width=400&height=300&nologo=true"
 
 # --- 4. APP LOGIC ---
@@ -112,15 +111,12 @@ for i, col in enumerate(cols):
 st.markdown("---")
 
 def generate_menu_ai():
-    # CHANGED MODEL NAME HERE TO BE SAFE
-    model = genai.GenerativeModel('gemini-1.5-flash-001')
-    
+    # DISLIKE STRING
     dislikes = ", ".join(st.session_state.preferences["dislikes"])
     is_weekend = st.session_state.selected_date.weekday() >= 5
     
     prompt = f"""
     You are a smart family cook for 3 vegetarians in Mumbai. 
-    
     STRICT CONSTRAINTS:
     1. Diet: Vegetarian. NO Meat, NO Eggs.
     2. AVOID ingredients: {dislikes}.
@@ -144,13 +140,23 @@ def generate_menu_ai():
     """
     
     with st.spinner("👨‍🍳 Chef is thinking..."):
+        # TRY NEW MODEL FIRST
         try:
+            model = genai.GenerativeModel('gemini-1.5-flash')
             response = model.generate_content(prompt)
             clean_json = response.text.replace("```json", "").replace("```", "")
             return json.loads(clean_json)
         except Exception as e:
-            st.error(f"Chef got confused: {e}")
-            return None
+            # FALLBACK TO OLDER STABLE MODEL IF FLASH FAILS
+            try:
+                st.warning("⚠️ Switching to Standard Chef (Gemini Pro)...")
+                model = genai.GenerativeModel('gemini-pro')
+                response = model.generate_content(prompt)
+                clean_json = response.text.replace("```json", "").replace("```", "")
+                return json.loads(clean_json)
+            except Exception as e2:
+                st.error(f"Chef is offline. Error: {e2}")
+                return None
 
 if st.button("✨ Plan My Day", type="primary", use_container_width=True):
     menu_data = generate_menu_ai()
@@ -161,22 +167,22 @@ if st.session_state.generated_menu:
     menu = st.session_state.generated_menu
     
     def render_card(meal_type, data):
-        image_url = get_food_image_url(data['dish'])
+        image_url = get_food_image_url(data.get('dish', 'Food'))
         st.markdown(f"""
         <div class="food-card">
             <div class="food-img-container"><img src="{image_url}" class="food-img"></div>
             <div class="food-details">
                 <span class="meal-badge">{meal_type}</span>
-                <div class="food-title">{data['dish']}</div>
-                <div class="food-desc">{data['desc']}</div>
+                <div class="food-title">{data.get('dish', 'Dish')}</div>
+                <div class="food-desc">{data.get('desc', '')}</div>
                 <div style="margin-top: 10px; font-size: 0.8em; color: #888;">🔥 {data.get('calories', 'N/A')} • 🌿 Veg</div>
             </div>
         </div>
         """, unsafe_allow_html=True)
 
-    render_card("Breakfast", menu['breakfast'])
-    render_card("Lunch", menu['lunch'])
-    render_card("Dinner", menu['dinner'])
+    render_card("Breakfast", menu.get('breakfast', {}))
+    render_card("Lunch", menu.get('lunch', {}))
+    render_card("Dinner", menu.get('dinner', {}))
     
     if "message" in menu:
         st.info(f"💡 {menu['message']}")
@@ -184,15 +190,13 @@ if st.session_state.generated_menu:
 st.markdown("### 🗣️ Talk to the Chef")
 feedback = st.chat_input("Ex: 'I don't want Pasta, give me something Indian'")
 if feedback and st.session_state.generated_menu:
-    model = genai.GenerativeModel('gemini-1.5-flash-001')
-    prompt = f"""
-    Current Menu: {json.dumps(st.session_state.generated_menu)}
-    User Feedback: "{feedback}"
-    Constraints: {", ".join(st.session_state.preferences["dislikes"])}. NO South Indian.
-    Task: Update menu JSON.
-    """
     with st.spinner("Adjusting menu..."):
-        response = model.generate_content(prompt)
-        clean_json = response.text.replace("```json", "").replace("```", "")
-        st.session_state.generated_menu = json.loads(clean_json)
-        st.rerun()
+        try:
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            prompt = f"Update menu based on feedback: {feedback}. Previous Menu: {json.dumps(st.session_state.generated_menu)}. Output JSON only."
+            response = model.generate_content(prompt)
+            clean_json = response.text.replace("```json", "").replace("```", "")
+            st.session_state.generated_menu = json.loads(clean_json)
+            st.rerun()
+        except:
+             st.error("Could not update. Try generating a new menu.")
