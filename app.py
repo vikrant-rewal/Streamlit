@@ -5,7 +5,7 @@ import json
 import os
 import time
 import random
-import re # Added for robust JSON cleaning
+import re
 from gtts import gTTS
 import tempfile
 
@@ -14,7 +14,7 @@ st.set_page_config(
     page_title="Ammy's Choice",
     page_icon="🍳",
     layout="centered",
-    initial_sidebar_state="expanded" # Expanded so you can see settings easily
+    initial_sidebar_state="expanded"
 )
 
 # --- 2. SETUP & CONSTANTS ---
@@ -24,7 +24,6 @@ DEFAULT_PREFERENCES = {
     "diet": "Vegetarian"
 }
 
-# Reliable, high-quality static images (FALLBACK)
 MEAL_IMAGES = {
     "breakfast": "https://images.unsplash.com/photo-1589302168068-964664d93dc0?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
     "lunch": "https://images.unsplash.com/photo-1546833999-b9f581a1996d?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
@@ -81,9 +80,9 @@ st.markdown("""
     div.stButton > button[kind="primary"] { background: linear-gradient(135deg, #FF6B6B 0%, #EE5253 100%); box-shadow: 0 4px 15px rgba(238, 82, 83, 0.4); }
     .stTextInput input { border-radius: 30px; padding-left: 20px; border: 1px solid #eee; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
     
-    /* Reduce whitespace around the input form */
+    /* TIGHTER UI FOR CHAT INPUT */
     .stForm { margin-top: 0px; }
-    .block-container { padding-bottom: 2rem; }
+    .block-container { padding-bottom: 1rem; }
     
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} .stDeployButton {display:none;}
     </style>
@@ -113,93 +112,46 @@ def text_to_speech(menu_json):
             return fp.name
     except: return None
 
-# Helper to clean JSON string from LLM
 def extract_json(text):
     try:
-        # Regex to find content between first { and last }
         match = re.search(r'\{.*\}', text, re.DOTALL)
-        if match:
-            return json.loads(match.group())
-        return json.loads(text) # Try raw text if regex fails
-    except:
-        return None
+        if match: return json.loads(match.group())
+        return json.loads(text)
+    except: return None
 
 # ==========================================
 # --- 5. API FUNCTIONS ---
 # ==========================================
-
-# A. CLAUDE TEXT API (Haiku 3.5)
 def call_claude_api(prompt_text):
-    try:
-        api_key = st.secrets["CLAUDE_API_KEY"]
-    except:
-        st.error("Missing CLAUDE_API_KEY in secrets.")
-        return None
-
+    try: api_key = st.secrets["CLAUDE_API_KEY"]
+    except: return None
     url = "https://api.anthropic.com/v1/messages"
-    headers = {
-        "x-api-key": api_key,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json"
-    }
-    
-    payload = {
-        "model": "claude-3-5-haiku-20241022",
-        "max_tokens": 1024,
-        "messages": [{"role": "user", "content": prompt_text}]
-    }
-
+    headers = { "x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json" }
+    payload = { "model": "claude-3-5-haiku-20241022", "max_tokens": 1024, "messages": [{"role": "user", "content": prompt_text}] }
     try:
         response = requests.post(url, headers=headers, json=payload, timeout=25)
-        if response.status_code == 200:
-            result = response.json()
-            return result['content'][0]['text']
-        else:
-            st.error(f"Claude Error {response.status_code}: {response.text}")
-            return None
-    except Exception as e:
-        st.error(f"Connection Error: {e}")
-        return None
+        if response.status_code == 200: return response.json()['content'][0]['text']
+        else: return None
+    except: return None
 
-# B. GEMINI IMAGE API (gemini-2.0-flash-exp)
 def call_gemini_image_api(prompt_text):
-    try:
-        api_key = st.secrets["GEMINI_IMAGE_KEY"]
-    except:
-        return None
-
+    try: api_key = st.secrets["GEMINI_IMAGE_KEY"]
+    except: return None
     model = "gemini-2.0-flash-exp-image-generation"
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:predict"
-    
-    headers = {
-        "Content-Type": "application/json",
-        "x-goog-api-key": api_key
-    }
-    
-    payload = {
-        "instances": [
-            {
-                "prompt": prompt_text,
-                "parameters": {"aspectRatio": "4:3"}
-            }
-        ]
-    }
-
+    headers = { "Content-Type": "application/json", "x-goog-api-key": api_key }
+    payload = { "instances": [{ "prompt": prompt_text, "parameters": {"aspectRatio": "4:3"} }] }
     try:
         response = requests.post(url, headers=headers, json=payload, timeout=30)
         if response.status_code == 200:
             result = response.json()
             if 'predictions' in result and result['predictions']:
                  prediction = result['predictions'][0]
-                 if 'bytesBase64Encoded' in prediction:
-                     return prediction['bytesBase64Encoded']
-                 elif 'image' in prediction and 'b64' in prediction['image']:
-                     return prediction['image']['b64']
+                 if 'bytesBase64Encoded' in prediction: return prediction['bytesBase64Encoded']
+                 elif 'image' in prediction and 'b64' in prediction['image']: return prediction['image']['b64']
         return None
-    except Exception:
-        return None
+    except: return None
 
-# C. CACHED IMAGE WRAPPER
 @st.cache_data(show_spinner=False, ttl=3600*24)
 def get_food_image(dish_name):
     if not dish_name or dish_name == 'Food': return None
@@ -215,42 +167,47 @@ def get_food_image(dish_name):
 if 'preferences' not in st.session_state: st.session_state.preferences = load_memory()
 if 'meal_plans' not in st.session_state: st.session_state.meal_plans = {} 
 
-# IST Fix
 IST = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
 today_ist = datetime.datetime.now(IST).date()
 
 if 'selected_date' not in st.session_state: st.session_state.selected_date = today_ist
 if st.session_state.selected_date < today_ist: st.session_state.selected_date = today_ist
 
-# --- UPDATED SIDEBAR (EDITABLE PREFERENCES) ---
+# --- UPDATED SIDEBAR (THE FIX) ---
 with st.sidebar:
-    st.header("⚙️ Preferences")
+    st.header("⚙️ Dietary Preferences")
     
-    # 1. Add New Dislike
-    new_dislike = st.text_input("Add a Dislike (e.g., Mushroom)")
-    if st.button("Add"):
-        if new_dislike and new_dislike not in st.session_state.preferences["dislikes"]:
+    # 1. ADD NEW RESTRICTION
+    st.write("**Add a Dislike:**")
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        new_dislike = st.text_input("New item", label_visibility="collapsed", placeholder="E.g. Mushroom")
+    with col2:
+        add_btn = st.button("➕", help="Add to list")
+
+    if add_btn and new_dislike:
+        if new_dislike not in st.session_state.preferences["dislikes"]:
             st.session_state.preferences["dislikes"].append(new_dislike)
             save_memory(st.session_state.preferences)
             st.rerun()
             
-    st.markdown("---")
+    st.write("---")
     
-    # 2. Manage Existing Dislikes (Remove functionality)
-    st.write("**Manage Your Dislikes:**")
-    st.caption("Uncheck items to remove them from your memory.")
+    # 2. REMOVE RESTRICTION (INTERACTIVE TAGS)
+    st.write("**Your Restrictions:**")
+    st.caption("Click the 'x' to remove an item.")
     
     current_list = st.session_state.preferences["dislikes"]
     
-    # Multiselect allows adding/removing. We initialize it with the current list.
+    # Using multiselect as a tag manager
     updated_list = st.multiselect(
-        "Current Dislikes",
+        "Edit Restrictions",
         options=current_list,
         default=current_list,
         label_visibility="collapsed"
     )
     
-    # Detect changes (If user removed something)
+    # If the user removed something via the UI
     if len(updated_list) < len(current_list):
         st.session_state.preferences["dislikes"] = updated_list
         save_memory(st.session_state.preferences)
@@ -350,10 +307,8 @@ else:
         with st.spinner(f"Garnishing {meal_key}..."):
              ai_image_url = get_food_image(dish_name)
 
-        if ai_image_url:
-            final_image_url = ai_image_url
-        else:
-            final_image_url = MEAL_IMAGES.get(meal_key, MEAL_IMAGES["default"])
+        if ai_image_url: final_image_url = ai_image_url
+        else: final_image_url = MEAL_IMAGES.get(meal_key, MEAL_IMAGES["default"])
 
         st.markdown(f"""
             <div class="food-card">
@@ -380,15 +335,13 @@ else:
     if "message" in current_menu:
         st.success(f"**Chef's Note:** {current_menu['message']}")
 
-    # Ingredients
-    ingredients_list = current_menu.get('ingredients', [])
-    if ingredients_list:
+    if current_menu.get('ingredients'):
         st.markdown(f"""
         <div class="ingredients-box">
             <div class="ing-title">🛒 Ingredients for Today</div>
             <p style="color: #636E72; font-size: 0.9rem; margin-bottom: 10px;">Here is everything you need to cook these 3 meals:</p>
             <div style="display: flex; flex-wrap: wrap; gap: 10px;">
-                {''.join([f'<span style="background:#FFF0F0; color:#E17055; padding:5px 10px; border-radius:15px; font-size:0.85em; border:1px solid #FAB1A0;">{item}</span>' for item in ingredients_list])}
+                {''.join([f'<span style="background:#FFF0F0; color:#E17055; padding:5px 10px; border-radius:15px; font-size:0.85em; border:1px solid #FAB1A0;">{item}</span>' for item in current_menu['ingredients']])}
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -398,8 +351,7 @@ else:
         if st.button("🔊 Read Aloud", use_container_width=True):
             with st.spinner("Generating audio..."):
                 audio_file = text_to_speech(current_menu)
-                if audio_file:
-                    st.audio(audio_file, format='audio/mp3', start_time=0)
+                if audio_file: st.audio(audio_file, format='audio/mp3', start_time=0)
     with c_btn2:
         if st.button("🔄 Shuffle Menu", use_container_width=True):
             menu_data = generate_menu_ai()
@@ -408,14 +360,12 @@ else:
                 st.cache_data.clear()
                 st.rerun()
 
-    # --- UPDATED INPUT SECTION (TIGHTER UI) ---
+    # --- TIGHTER INPUT SECTION ---
     with st.container():
         with st.form(key='custom_request', clear_on_submit=True):
             col_in, col_btn = st.columns([5, 1], gap="small")
             with col_in:
-                text_req = st.text_input("Request", 
-                                       placeholder="✨ E.g. Swap lunch for a salad, or make dinner spicy...", 
-                                       label_visibility="collapsed")
+                text_req = st.text_input("Request", placeholder="✨ E.g. Swap lunch for a salad, or make dinner spicy...", label_visibility="collapsed")
             with col_btn:
                 submitted = st.form_submit_button("➤", type="primary", use_container_width=True)
 
@@ -423,27 +373,17 @@ else:
         with st.spinner("Adjusting menu..."):
             curr = json.dumps(current_menu)
             p = f"""
-            You are a JSON-only API. 
-            Current Menu JSON: {curr}
-            User Request: "{text_req}"
-            
-            Task:
-            1. Parse the User Request.
-            2. If they dislike a specific dish or ingredient (e.g., 'no kathal'), REPLACE that specific meal with a new vegetarian Indian option.
-            3. Update 'ingredients'.
-            4. Keep other meals unchanged unless requested.
-            5. RETURN ONLY THE VALID JSON. No intro/outro text.
+            You are a JSON-only API. Current Menu JSON: {curr}. User Request: "{text_req}"
+            Task: Update the menu based on the request (e.g. swap a dish). Update 'ingredients'.
+            Constraints: Vegetarian. NO {st.session_state.preferences['dislikes']}.
+            RETURN ONLY THE VALID JSON. No intro/outro text.
             """
-            
             text_response = call_claude_api(p)
-            
             if text_response:
                 new_data = extract_json(text_response)
                 if new_data:
                     st.session_state.meal_plans[selected_date_str] = new_data
                     st.cache_data.clear()
                     st.rerun()
-                else:
-                    st.error("Could not understand the update (Invalid JSON).")
-            else:
-                st.error("Chef didn't respond.")
+                else: st.error("Could not understand the update.")
+            else: st.error("Chef didn't respond.")
