@@ -80,7 +80,6 @@ st.markdown("""
     div.stButton > button[kind="primary"] { background: linear-gradient(135deg, #FF6B6B 0%, #EE5253 100%); box-shadow: 0 4px 15px rgba(238, 82, 83, 0.4); }
     .stTextInput input { border-radius: 30px; padding-left: 20px; border: 1px solid #eee; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
     
-    /* TIGHTER UI FOR CHAT INPUT */
     .stForm { margin-top: 0px; }
     .block-container { padding-bottom: 1rem; }
     
@@ -99,11 +98,12 @@ def save_memory(prefs):
 
 def text_to_speech(menu_json):
     date_str = st.session_state.selected_date.strftime("%A, %d %B")
-    speech_text = f"Ammy's choice for {date_str}. "
-    speech_text += f"Breakfast: {menu_json.get('breakfast', {}).get('dish')}. "
-    speech_text += f"Lunch: {menu_json.get('lunch', {}).get('dish')}. "
-    speech_text += f"Dinner: {menu_json.get('dinner', {}).get('dish')}. "
-    if menu_json.get('message'): speech_text += f"Tip: {menu_json['message']}"
+    # Updated text to sound natural for WhatsApp sharing
+    speech_text = f"Hello! Here is the menu for {date_str}. "
+    speech_text += f"Breakfast will be {menu_json.get('breakfast', {}).get('dish')}. "
+    speech_text += f"For Lunch, please make {menu_json.get('lunch', {}).get('dish')}. "
+    speech_text += f"And for Dinner, we will have {menu_json.get('dinner', {}).get('dish')}. "
+    if menu_json.get('message'): speech_text += f"Note: {menu_json['message']}"
 
     try:
         tts = gTTS(text=speech_text, lang='en', tld='co.in')
@@ -173,11 +173,10 @@ today_ist = datetime.datetime.now(IST).date()
 if 'selected_date' not in st.session_state: st.session_state.selected_date = today_ist
 if st.session_state.selected_date < today_ist: st.session_state.selected_date = today_ist
 
-# --- UPDATED SIDEBAR (THE FIX) ---
+# --- UPDATED SIDEBAR ---
 with st.sidebar:
     st.header("⚙️ Dietary Preferences")
     
-    # 1. ADD NEW RESTRICTION
     st.write("**Add a Dislike:**")
     col1, col2 = st.columns([3, 1])
     with col1:
@@ -193,21 +192,11 @@ with st.sidebar:
             
     st.write("---")
     
-    # 2. REMOVE RESTRICTION (INTERACTIVE TAGS)
     st.write("**Your Restrictions:**")
     st.caption("Click the 'x' to remove an item.")
-    
     current_list = st.session_state.preferences["dislikes"]
+    updated_list = st.multiselect("Edit Restrictions", options=current_list, default=current_list, label_visibility="collapsed")
     
-    # Using multiselect as a tag manager
-    updated_list = st.multiselect(
-        "Edit Restrictions",
-        options=current_list,
-        default=current_list,
-        label_visibility="collapsed"
-    )
-    
-    # If the user removed something via the UI
     if len(updated_list) < len(current_list):
         st.session_state.preferences["dislikes"] = updated_list
         save_memory(st.session_state.preferences)
@@ -232,11 +221,15 @@ st.markdown("<br>", unsafe_allow_html=True)
 selected_date_str = str(st.session_state.selected_date)
 current_menu = st.session_state.meal_plans.get(selected_date_str)
 
+# --- CORE LOGIC: Dynamic Loading UI ---
+# We define placeholders for the button area and the menu area
+action_placeholder = st.empty()
+menu_placeholder = st.empty()
+
 def generate_menu_ai():
     dislikes = ", ".join(st.session_state.preferences["dislikes"])
     is_weekend = st.session_state.selected_date.weekday() >= 5
     
-    # Get History
     past_dishes = []
     for i in range(1, 6):
         prev = st.session_state.selected_date - datetime.timedelta(days=i)
@@ -253,37 +246,33 @@ def generate_menu_ai():
     Context: Planning meals for {date_display}. Weekend: {"Yes" if is_weekend else "No"}.
     Constraints: Vegetarian. NO {dislikes}. NO South Indian (unless requested).
     
-    VARIETY RULES (CRITICAL):
-    1. HISTORY CHECK: Recently eaten dishes: {past_str}.
-    2. PANEER FREQUENCY RULE: If "Paneer" appears in the Recently Eaten list, DO NOT serve Paneer for Dinner today. 
-       - Instead, serve rich alternatives like: Soy Chaap, Malai Kofta (Lauki/Veg), Rajma Masala, or Chole Bhature.
-       - Paneer should be on ALTERNATE days only.
-    3. USER FAVORITES: Frequently rotate in Bhindi (Okra), Channa, Rajma, and Beans.
-    4. Balance: Ensure a mix of Dry Sabzis and Gravies.
+    VARIETY RULES:
+    1. HISTORY: Recently eaten: {past_str}.
+    2. PANEER RULE: If "Paneer" in history, NO Paneer for Dinner. Serve Soy Chaap, Malai Kofta, Rajma, Chole.
+    3. FAVORITES: Rotate Bhindi, Channa, Rajma, Beans.
     
-    TASK: Generate a menu AND a shopping list of main ingredients.
-    
-    Output STRICT JSON format only: {{ 
-        "breakfast": {{ "dish": "", "desc": "", "calories": "" }}, 
-        "lunch": {{ "dish": "", "desc": "", "calories": "" }}, 
-        "dinner": {{ "dish": "", "desc": "", "calories": "" }}, 
-        "message": "Chef's Tip",
-        "ingredients": ["Item 1", "Item 2", "Item 3", "etc..."] 
-    }}
+    TASK: Generate menu & shopping list.
+    Output JSON ONLY: {{ "breakfast": {{...}}, "lunch": {{...}}, "dinner": {{...}}, "message": "...", "ingredients": [...] }}
     """
     
-    loading_placeholder = st.empty()
+    # 1. Clear the button immediately
+    action_placeholder.empty()
+    
+    # 2. Show Animation in the same spot
     random_msg = random.choice(LOADING_MESSAGES)
+    with action_placeholder.container():
+         st.markdown(f"""
+            <div class="chef-loading">
+                <div style="font-size: 3rem;">🥘</div>
+                <div class="chef-loading-text">{random_msg}</div>
+            </div>
+        """, unsafe_allow_html=True)
     
-    loading_placeholder.markdown(f"""
-        <div class="chef-loading">
-            <div style="font-size: 3rem;">🥘</div>
-            <div class="chef-loading-text">{random_msg}</div>
-        </div>
-    """, unsafe_allow_html=True)
-    
+    # 3. Call API
     text_resp = call_claude_api(prompt)
-    loading_placeholder.empty()
+    
+    # 4. Clear Animation
+    action_placeholder.empty()
     
     if text_resp:
         data = extract_json(text_resp)
@@ -292,14 +281,16 @@ def generate_menu_ai():
     return None
 
 if not current_menu:
-    st.info(f"No plan for {st.session_state.selected_date.strftime('%A')}. Let's make one!")
-    if st.button("✨ Create Menu", type="primary", use_container_width=True):
-        menu_data = generate_menu_ai()
-        if menu_data:
-            st.session_state.meal_plans[selected_date_str] = menu_data
-            st.rerun()
+    # Show "Create Menu" button in the placeholder
+    with action_placeholder.container():
+        st.info(f"No plan for {st.session_state.selected_date.strftime('%A')}. Let's make one!")
+        if st.button("✨ Create Menu", type="primary", use_container_width=True):
+            menu_data = generate_menu_ai()
+            if menu_data:
+                st.session_state.meal_plans[selected_date_str] = menu_data
+                st.rerun()
 else:
-    # Render Cards with GEMINI AI IMAGES + FALLBACK
+    # Render Menu in the main area
     def render_card(meal_type, data):
         dish_name = data.get('dish', 'Food')
         meal_key = meal_type.lower()
@@ -348,7 +339,8 @@ else:
 
     c_btn1, c_btn2 = st.columns(2)
     with c_btn1:
-        if st.button("🔊 Read Aloud", use_container_width=True):
+        # UPDATED BUTTON LABEL
+        if st.button("📲 Share Menu as Audio", use_container_width=True):
             with st.spinner("Generating audio..."):
                 audio_file = text_to_speech(current_menu)
                 if audio_file: st.audio(audio_file, format='audio/mp3', start_time=0)
@@ -360,7 +352,7 @@ else:
                 st.cache_data.clear()
                 st.rerun()
 
-    # --- TIGHTER INPUT SECTION ---
+    # --- INPUT SECTION ---
     with st.container():
         with st.form(key='custom_request', clear_on_submit=True):
             col_in, col_btn = st.columns([5, 1], gap="small")
