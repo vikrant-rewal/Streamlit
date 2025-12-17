@@ -5,6 +5,7 @@ import json
 import os
 import time
 import random
+import re # Added for robust JSON cleaning
 from gtts import gTTS
 import tempfile
 
@@ -13,7 +14,7 @@ st.set_page_config(
     page_title="Ammy's Choice",
     page_icon="🍳",
     layout="centered",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded" # Expanded so you can see settings easily
 )
 
 # --- 2. SETUP & CONSTANTS ---
@@ -80,6 +81,10 @@ st.markdown("""
     div.stButton > button[kind="primary"] { background: linear-gradient(135deg, #FF6B6B 0%, #EE5253 100%); box-shadow: 0 4px 15px rgba(238, 82, 83, 0.4); }
     .stTextInput input { border-radius: 30px; padding-left: 20px; border: 1px solid #eee; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
     
+    /* Reduce whitespace around the input form */
+    .stForm { margin-top: 0px; }
+    .block-container { padding-bottom: 2rem; }
+    
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} .stDeployButton {display:none;}
     </style>
 """, unsafe_allow_html=True)
@@ -108,8 +113,19 @@ def text_to_speech(menu_json):
             return fp.name
     except: return None
 
+# Helper to clean JSON string from LLM
+def extract_json(text):
+    try:
+        # Regex to find content between first { and last }
+        match = re.search(r'\{.*\}', text, re.DOTALL)
+        if match:
+            return json.loads(match.group())
+        return json.loads(text) # Try raw text if regex fails
+    except:
+        return None
+
 # ==========================================
-# --- 5. API FUNCTIONS (TEXT & IMAGE) ---
+# --- 5. API FUNCTIONS ---
 # ==========================================
 
 # A. CLAUDE TEXT API (Haiku 3.5)
@@ -206,17 +222,39 @@ today_ist = datetime.datetime.now(IST).date()
 if 'selected_date' not in st.session_state: st.session_state.selected_date = today_ist
 if st.session_state.selected_date < today_ist: st.session_state.selected_date = today_ist
 
-# Sidebar
+# --- UPDATED SIDEBAR (EDITABLE PREFERENCES) ---
 with st.sidebar:
-    st.markdown("### ⚙️ Settings")
-    st.write("**Dietary Restrictions**")
-    st.warning("No: " + ", ".join(st.session_state.preferences["dislikes"]))
-    new_dislike = st.text_input("Add restriction:")
-    if st.button("Save Restriction"):
-        if new_dislike:
+    st.header("⚙️ Preferences")
+    
+    # 1. Add New Dislike
+    new_dislike = st.text_input("Add a Dislike (e.g., Mushroom)")
+    if st.button("Add"):
+        if new_dislike and new_dislike not in st.session_state.preferences["dislikes"]:
             st.session_state.preferences["dislikes"].append(new_dislike)
             save_memory(st.session_state.preferences)
             st.rerun()
+            
+    st.markdown("---")
+    
+    # 2. Manage Existing Dislikes (Remove functionality)
+    st.write("**Manage Your Dislikes:**")
+    st.caption("Uncheck items to remove them from your memory.")
+    
+    current_list = st.session_state.preferences["dislikes"]
+    
+    # Multiselect allows adding/removing. We initialize it with the current list.
+    updated_list = st.multiselect(
+        "Current Dislikes",
+        options=current_list,
+        default=current_list,
+        label_visibility="collapsed"
+    )
+    
+    # Detect changes (If user removed something)
+    if len(updated_list) < len(current_list):
+        st.session_state.preferences["dislikes"] = updated_list
+        save_memory(st.session_state.preferences)
+        st.rerun()
 
 # --- 7. MAIN UI ---
 st.markdown("<div class='main-header'><h1>🍳 Ammy's Choice</h1><p>Home-cooked meal planning, made simple.</p></div>", unsafe_allow_html=True)
@@ -253,7 +291,6 @@ def generate_menu_ai():
     
     date_display = st.session_state.selected_date.strftime("%A, %d %b")
 
-    # --- UPDATED PROMPT: STRICT PANEER ROTATION ---
     prompt = f"""
     You are an expert Vegetarian Indian Home Chef.
     Context: Planning meals for {date_display}. Weekend: {"Yes" if is_weekend else "No"}.
@@ -292,14 +329,9 @@ def generate_menu_ai():
     loading_placeholder.empty()
     
     if text_resp:
-        try: 
-            start = text_resp.find('{')
-            end = text_resp.rfind('}') + 1
-            if start != -1 and end != -1:
-                return json.loads(text_resp[start:end])
-            else:
-                return json.loads(text_resp)
-        except: st.error("Chef's handwriting was messy. Try again.")
+        data = extract_json(text_resp)
+        if data: return data
+        st.error("Chef's handwriting was messy. Try again.")
     return None
 
 if not current_menu:
@@ -361,8 +393,6 @@ else:
         </div>
         """, unsafe_allow_html=True)
 
-    st.markdown("<br>", unsafe_allow_html=True)
-
     c_btn1, c_btn2 = st.columns(2)
     with c_btn1:
         if st.button("🔊 Read Aloud", use_container_width=True):
@@ -378,9 +408,7 @@ else:
                 st.cache_data.clear()
                 st.rerun()
 
-    # --- INPUT SECTION ---
-    st.markdown("---")
-    
+    # --- UPDATED INPUT SECTION (TIGHTER UI) ---
     with st.container():
         with st.form(key='custom_request', clear_on_submit=True):
             col_in, col_btn = st.columns([5, 1], gap="small")
@@ -410,12 +438,12 @@ else:
             text_response = call_claude_api(p)
             
             if text_response:
-                try:
-                    start = text_response.find('{')
-                    end = text_response.rfind('}') + 1
-                    clean_json = text_response[start:end]
-                    new_data = json.loads(clean_json)
+                new_data = extract_json(text_response)
+                if new_data:
                     st.session_state.meal_plans[selected_date_str] = new_data
                     st.cache_data.clear()
                     st.rerun()
-                except: st.error("Could not understand the update.")
+                else:
+                    st.error("Could not understand the update (Invalid JSON).")
+            else:
+                st.error("Chef didn't respond.")
