@@ -52,21 +52,21 @@ st.markdown("""
     
     .food-card { 
         background: white; border-radius: 20px; overflow: hidden; 
-        box-shadow: 0 10px 25px rgba(0,0,0,0.05); margin-bottom: 25px; border: none;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.05); margin-bottom: 10px; border: none;
         transition: transform 0.2s;
     }
     .food-card:hover { transform: translateY(-3px); }
     
-    .food-img-container { height: 200px; overflow: hidden; position: relative; background: #f0f0f0; }
+    .food-img-container { height: 180px; overflow: hidden; position: relative; background: #f0f0f0; }
     .food-img { width: 100%; height: 100%; object-fit: cover; }
     .meal-badge { 
         position: absolute; top: 15px; left: 15px; background-color: #FF6B6B; color: white; 
         padding: 5px 15px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; 
     }
     
-    .food-details { padding: 20px; }
-    .food-title { font-size: 1.2rem; font-weight: 600; color: #2D3436; margin-bottom: 8px; }
-    .food-desc { font-size: 0.9rem; color: #636E72; line-height: 1.5; }
+    .food-details { padding: 15px; }
+    .food-title { font-size: 1.1rem; font-weight: 600; color: #2D3436; margin-bottom: 8px; }
+    .food-desc { font-size: 0.85rem; color: #636E72; line-height: 1.4; }
     .food-meta { margin-top: 15px; padding-top: 15px; border-top: 1px dashed #eee; font-size: 0.8em; color: #B2BEC3; display: flex; justify-content: space-between; }
 
     .ingredients-box { background-color: #fff; border: 2px dashed #FF6B6B; border-radius: 15px; padding: 20px; margin-top: 20px; }
@@ -78,10 +78,7 @@ st.markdown("""
 
     div.stButton > button { border-radius: 12px; font-weight: 600; border: none; }
     div.stButton > button[kind="primary"] { background: linear-gradient(135deg, #FF6B6B 0%, #EE5253 100%); box-shadow: 0 4px 15px rgba(238, 82, 83, 0.4); }
-    .stTextInput input { border-radius: 30px; padding-left: 20px; border: 1px solid #eee; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
-    
-    .stForm { margin-top: 0px; }
-    .block-container { padding-bottom: 1rem; }
+    div.stButton > button[kind="secondary"] { background: #fff; border: 1px solid #ddd; color: #555; }
     
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} .stDeployButton {display:none;}
     </style>
@@ -98,7 +95,6 @@ def save_memory(prefs):
 
 def text_to_speech(menu_json):
     date_str = st.session_state.selected_date.strftime("%A, %d %B")
-    # Updated text to sound natural for WhatsApp sharing
     speech_text = f"Hello! Here is the menu for {date_str}. "
     speech_text += f"Breakfast will be {menu_json.get('breakfast', {}).get('dish')}. "
     speech_text += f"For Lunch, please make {menu_json.get('lunch', {}).get('dish')}. "
@@ -173,7 +169,7 @@ today_ist = datetime.datetime.now(IST).date()
 if 'selected_date' not in st.session_state: st.session_state.selected_date = today_ist
 if st.session_state.selected_date < today_ist: st.session_state.selected_date = today_ist
 
-# --- UPDATED SIDEBAR ---
+# --- SIDEBAR ---
 with st.sidebar:
     st.header("⚙️ Dietary Preferences")
     
@@ -221,10 +217,42 @@ st.markdown("<br>", unsafe_allow_html=True)
 selected_date_str = str(st.session_state.selected_date)
 current_menu = st.session_state.meal_plans.get(selected_date_str)
 
-# --- CORE LOGIC: Dynamic Loading UI ---
-# We define placeholders for the button area and the menu area
+# --- PLACEHOLDERS ---
 action_placeholder = st.empty()
 menu_placeholder = st.empty()
+
+# --- REGENERATION LOGIC (SINGLE MEAL) ---
+def regenerate_single_meal(meal_type, current_full_menu):
+    dislikes = ", ".join(st.session_state.preferences["dislikes"])
+    
+    # Construct Prompt
+    prompt = f"""
+    You are a JSON-only API.
+    
+    CONTEXT:
+    Current Menu: {json.dumps(current_full_menu)}
+    User Request: "I don't want the current {meal_type}. Change ONLY the {meal_type} to a completely different vegetarian Indian dish."
+    
+    CONSTRAINTS:
+    1. Keep the other two meals EXACTLY the same.
+    2. Suggest a new {meal_type} that is vegetarian and contains NO {dislikes}.
+    3. Update the 'ingredients' list to reflect this change (remove old {meal_type} ingredients, add new ones).
+    
+    RETURN ONLY THE VALID JSON.
+    """
+    
+    with st.spinner(f"Whipping up a new {meal_type}..."):
+        text_resp = call_claude_api(prompt)
+        if text_resp:
+            new_data = extract_json(text_resp)
+            if new_data:
+                st.session_state.meal_plans[selected_date_str] = new_data
+                st.cache_data.clear() # Clear image cache
+                st.rerun()
+            else:
+                st.error("Chef got confused. Try again.")
+        else:
+            st.error("Chef is unreachable.")
 
 def generate_menu_ai():
     dislikes = ", ".join(st.session_state.preferences["dislikes"])
@@ -255,10 +283,7 @@ def generate_menu_ai():
     Output JSON ONLY: {{ "breakfast": {{...}}, "lunch": {{...}}, "dinner": {{...}}, "message": "...", "ingredients": [...] }}
     """
     
-    # 1. Clear the button immediately
     action_placeholder.empty()
-    
-    # 2. Show Animation in the same spot
     random_msg = random.choice(LOADING_MESSAGES)
     with action_placeholder.container():
          st.markdown(f"""
@@ -268,10 +293,7 @@ def generate_menu_ai():
             </div>
         """, unsafe_allow_html=True)
     
-    # 3. Call API
     text_resp = call_claude_api(prompt)
-    
-    # 4. Clear Animation
     action_placeholder.empty()
     
     if text_resp:
@@ -281,7 +303,6 @@ def generate_menu_ai():
     return None
 
 if not current_menu:
-    # Show "Create Menu" button in the placeholder
     with action_placeholder.container():
         st.info(f"No plan for {st.session_state.selected_date.strftime('%A')}. Let's make one!")
         if st.button("✨ Create Menu", type="primary", use_container_width=True):
@@ -290,8 +311,8 @@ if not current_menu:
                 st.session_state.meal_plans[selected_date_str] = menu_data
                 st.rerun()
 else:
-    # Render Menu in the main area
-    def render_card(meal_type, data):
+    # Render Menu Cards with Individual Swap Buttons
+    def render_card_with_action(meal_type, data):
         dish_name = data.get('dish', 'Food')
         meal_key = meal_type.lower()
         
@@ -317,11 +338,15 @@ else:
                 </div>
             </div>
         """, unsafe_allow_html=True)
+        
+        # --- SWAP BUTTON ---
+        if st.button(f"🔄 Swap {meal_type}", key=f"swap_{meal_key}", use_container_width=True):
+            regenerate_single_meal(meal_key, current_menu)
 
     c1, c2, c3 = st.columns(3)
-    with c1: render_card("Breakfast", current_menu.get('breakfast', {}))
-    with c2: render_card("Lunch", current_menu.get('lunch', {}))
-    with c3: render_card("Dinner", current_menu.get('dinner', {}))
+    with c1: render_card_with_action("Breakfast", current_menu.get('breakfast', {}))
+    with c2: render_card_with_action("Lunch", current_menu.get('lunch', {}))
+    with c3: render_card_with_action("Dinner", current_menu.get('dinner', {}))
 
     if "message" in current_menu:
         st.success(f"**Chef's Note:** {current_menu['message']}")
@@ -339,43 +364,14 @@ else:
 
     c_btn1, c_btn2 = st.columns(2)
     with c_btn1:
-        # UPDATED BUTTON LABEL
         if st.button("📲 Share Menu as Audio", use_container_width=True):
             with st.spinner("Generating audio..."):
                 audio_file = text_to_speech(current_menu)
                 if audio_file: st.audio(audio_file, format='audio/mp3', start_time=0)
     with c_btn2:
-        if st.button("🔄 Shuffle Menu", use_container_width=True):
+        if st.button("🔄 Shuffle Whole Menu", use_container_width=True):
             menu_data = generate_menu_ai()
             if menu_data:
                 st.session_state.meal_plans[selected_date_str] = menu_data
                 st.cache_data.clear()
                 st.rerun()
-
-    # --- INPUT SECTION ---
-    with st.container():
-        with st.form(key='custom_request', clear_on_submit=True):
-            col_in, col_btn = st.columns([5, 1], gap="small")
-            with col_in:
-                text_req = st.text_input("Request", placeholder="✨ E.g. Swap lunch for a salad, or make dinner spicy...", label_visibility="collapsed")
-            with col_btn:
-                submitted = st.form_submit_button("➤", type="primary", use_container_width=True)
-
-    if submitted and text_req:
-        with st.spinner("Adjusting menu..."):
-            curr = json.dumps(current_menu)
-            p = f"""
-            You are a JSON-only API. Current Menu JSON: {curr}. User Request: "{text_req}"
-            Task: Update the menu based on the request (e.g. swap a dish). Update 'ingredients'.
-            Constraints: Vegetarian. NO {st.session_state.preferences['dislikes']}.
-            RETURN ONLY THE VALID JSON. No intro/outro text.
-            """
-            text_response = call_claude_api(p)
-            if text_response:
-                new_data = extract_json(text_response)
-                if new_data:
-                    st.session_state.meal_plans[selected_date_str] = new_data
-                    st.cache_data.clear()
-                    st.rerun()
-                else: st.error("Could not understand the update.")
-            else: st.error("Chef didn't respond.")
