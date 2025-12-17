@@ -13,7 +13,7 @@ import tempfile
 st.set_page_config(
     page_title="Ammy's Choice",
     page_icon="🍳",
-    layout="wide", # Changed to wide to utilize desktop space better
+    layout="wide",
     initial_sidebar_state="collapsed"
 )
 
@@ -40,22 +40,21 @@ LOADING_MESSAGES = [
     "🍋 Squeezing some zest into your life..."
 ]
 
-# --- 3. CSS STYLING (The "Pretty" Part) ---
+# --- 3. CSS STYLING ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap');
     
     /* GLOBAL APP STYLES */
     .stApp {
-        background-color: #FFF9F5; /* Cream background */
+        background-color: #FFF9F5;
         font-family: 'Poppins', sans-serif;
     }
     
-    /* REMOVE DEFAULT STREAMLIT PADDING */
     .block-container {
         padding-top: 2rem;
         padding-bottom: 5rem;
-        max-width: 1000px; /* Keep content centered and readable on wide screens */
+        max-width: 1000px;
     }
 
     /* HEADER */
@@ -69,11 +68,6 @@ st.markdown("""
         font-size: 2.8rem;
         margin: 0;
         letter-spacing: -1px;
-    }
-    .main-header p {
-        color: #888;
-        font-size: 1rem;
-        margin-top: 5px;
     }
 
     /* DATE BUTTONS */
@@ -99,11 +93,12 @@ st.markdown("""
     /* FOOD CARD CONTAINER */
     .food-card {
         background: white;
-        border-radius: 20px 20px 0 0; /* Rounded top only */
+        border-radius: 20px 20px 0 0;
         overflow: hidden;
         border: 1px solid #f0f0f0;
-        border-bottom: none; /* Connect to button below */
+        border-bottom: none;
         position: relative;
+        height: 100%; /* Ensure full height alignment */
     }
     
     .food-img-container {
@@ -144,13 +139,13 @@ st.markdown("""
         font-weight: 700;
         line-height: 1.3;
         margin-bottom: 8px;
-        min-height: 3rem; /* Align titles */
+        min-height: 3rem;
     }
     .food-desc {
         color: #636E72;
         font-size: 0.85rem;
         line-height: 1.5;
-        min-height: 4.5rem; /* Align descriptions */
+        min-height: 4.5rem;
         display: -webkit-box;
         -webkit-line-clamp: 3;
         -webkit-box-orient: vertical;
@@ -182,10 +177,6 @@ st.markdown("""
         font-weight: 700;
         color: #2D3436;
         margin-bottom: 15px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
     }
     .pill {
         display: inline-block;
@@ -199,21 +190,16 @@ st.markdown("""
         font-weight: 500;
     }
 
-    /* ACTION BUTTONS (Bottom) */
-    .action-btn-container {
-        margin-top: 20px;
-    }
-
-    /* SWAP BUTTON STYLING (Specific Target) */
-    /* We style the secondary buttons that appear inside columns */
+    /* SWAP BUTTON STYLING */
     div[data-testid="column"] button[kind="secondary"] {
-        border-radius: 0 0 20px 20px; /* Rounded bottom only */
+        border-radius: 0 0 20px 20px;
         border-top: 1px solid #f0f0f0;
-        margin-top: -5px; /* Pull closer to card */
+        margin-top: -5px;
         width: 100%;
         background-color: white;
         color: #FF6B6B;
         border-color: #f0f0f0;
+        height: 3em;
     }
     div[data-testid="column"] button[kind="secondary"]:hover {
         background-color: #FFF5F5;
@@ -332,8 +318,6 @@ if st.session_state.selected_date < today_ist: st.session_state.selected_date = 
 # --- SIDEBAR ---
 with st.sidebar:
     st.header("⚙️ Dietary Preferences")
-    
-    st.write("**Add a Dislike:**")
     col1, col2 = st.columns([3, 1])
     with col1:
         new_dislike = st.text_input("New item", label_visibility="collapsed", placeholder="E.g. Mushroom")
@@ -360,7 +344,7 @@ with st.sidebar:
 # --- 7. MAIN UI ---
 st.markdown("<div class='main-header'><h1>🍳 Ammy's Choice</h1><p>Home-cooked meal planning, made simple.</p></div>", unsafe_allow_html=True)
 
-# DATE SELECTOR (Centered & Clean)
+# DATE SELECTOR
 date_cols = st.columns([1,1,1,1,1])
 for i in range(5):
     day_date = today_ist + datetime.timedelta(days=i)
@@ -377,18 +361,31 @@ st.markdown("<br>", unsafe_allow_html=True)
 selected_date_str = str(st.session_state.selected_date)
 current_menu = st.session_state.meal_plans.get(selected_date_str)
 
-# PLACEHOLDERS for Dynamic Interaction
 action_placeholder = st.empty()
 
 # --- REGENERATION LOGIC (SINGLE MEAL) ---
 def regenerate_single_meal(meal_type, current_full_menu):
     dislikes = ", ".join(st.session_state.preferences["dislikes"])
+    # STRICT SCHEMA IN PROMPT
     prompt = f"""
     You are a JSON-only API.
     CONTEXT: Current Menu: {json.dumps(current_full_menu)}.
     TASK: Change ONLY {meal_type} to a different vegetarian Indian dish.
-    CONSTRAINTS: NO {dislikes}. Update 'ingredients' accordingly.
-    RETURN ONLY VALID JSON.
+    CONSTRAINTS: NO {dislikes}. Update 'ingredients'.
+    
+    OUTPUT SCHEMA (STRICT):
+    {{
+        "{meal_type}": {{
+            "dish": "Dish Name",
+            "desc": "Short appetizing description (approx 20 words)",
+            "calories": "e.g. 350 kcal"
+        }},
+        "ingredients": ["Updated list..."],
+        "breakfast": {{...keep original...}},
+        "lunch": {{...keep original...}},
+        "dinner": {{...keep original...}},
+        "message": "..."
+    }}
     """
     with st.spinner(f"🍳 Whipping up a new {meal_type}..."):
         text_resp = call_claude_api(prompt)
@@ -405,7 +402,6 @@ def generate_menu_ai():
     dislikes = ", ".join(st.session_state.preferences["dislikes"])
     is_weekend = st.session_state.selected_date.weekday() >= 5
     
-    # History check
     past_dishes = []
     for i in range(1, 6):
         prev = st.session_state.selected_date - datetime.timedelta(days=i)
@@ -417,6 +413,7 @@ def generate_menu_ai():
     
     date_display = st.session_state.selected_date.strftime("%A, %d %b")
 
+    # STRICT SCHEMA IN MAIN PROMPT
     prompt = f"""
     You are an expert Vegetarian Indian Home Chef.
     Context: Planning meals for {date_display}. Weekend: {"Yes" if is_weekend else "No"}.
@@ -428,7 +425,15 @@ def generate_menu_ai():
     3. FAVORITES: Rotate Bhindi, Channa, Rajma, Beans.
     
     TASK: Generate menu & shopping list.
-    Output JSON ONLY: {{ "breakfast": {{...}}, "lunch": {{...}}, "dinner": {{...}}, "message": "...", "ingredients": [...] }}
+    
+    OUTPUT SCHEMA (STRICT JSON):
+    {{
+        "breakfast": {{ "dish": "Name", "desc": "Short description", "calories": "kcal" }},
+        "lunch": {{ "dish": "Name", "desc": "Short description", "calories": "kcal" }},
+        "dinner": {{ "dish": "Name", "desc": "Short description", "calories": "kcal" }},
+        "message": "Chef's Tip",
+        "ingredients": ["Item 1", "Item 2", "Item 3", "etc..."]
+    }}
     """
     
     action_placeholder.empty()
@@ -460,19 +465,20 @@ if not current_menu:
                 st.rerun()
 else:
     # --- RENDER MENU GRID ---
-    # Using columns with 'medium' gap for breathing room
     c1, c2, c3 = st.columns(3, gap="medium")
     
     def render_card_with_action(col, meal_type, data):
         with col:
             dish_name = data.get('dish', 'Food')
+            # FALLBACK IF DESC/CALORIES MISSING
+            desc = data.get('desc', 'A delicious and nutritious vegetarian meal.')
+            calories = data.get('calories', 'N/A')
             meal_key = meal_type.lower()
             
             with st.spinner(f"Loading..."):
                  ai_image_url = get_food_image(dish_name)
             final_image_url = ai_image_url if ai_image_url else MEAL_IMAGES.get(meal_key, MEAL_IMAGES["default"])
 
-            # Render HTML Card
             st.markdown(f"""
                 <div class="food-card">
                     <div class="food-img-container">
@@ -481,16 +487,15 @@ else:
                     </div>
                     <div class="food-details">
                         <div class="food-title">{dish_name}</div>
-                        <div class="food-desc">{data.get('desc', '')}</div>
+                        <div class="food-desc">{desc}</div>
                         <div class="food-meta">
-                            <span>🔥 {data.get('calories', 'N/A')}</span>
+                            <span>🔥 {calories}</span>
                             <span>🌿 Veg</span>
                         </div>
                     </div>
                 </div>
             """, unsafe_allow_html=True)
             
-            # The Button (Styled by CSS to attach to bottom of card)
             if st.button(f"🔄 Swap {meal_type}", key=f"swap_{meal_key}", use_container_width=True):
                 regenerate_single_meal(meal_key, current_menu)
 
@@ -516,7 +521,6 @@ else:
 
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # Action Buttons Side-by-Side
     ac1, ac2 = st.columns(2, gap="medium")
     with ac1:
         if st.button("📲 Share Menu as Audio", use_container_width=True):
