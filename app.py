@@ -13,8 +13,8 @@ import tempfile
 st.set_page_config(
     page_title="Ammy's Choice",
     page_icon="🍳",
-    layout="centered",
-    initial_sidebar_state="expanded"
+    layout="wide", # Changed to wide to utilize desktop space better
+    initial_sidebar_state="collapsed"
 )
 
 # --- 2. SETUP & CONSTANTS ---
@@ -40,45 +40,205 @@ LOADING_MESSAGES = [
     "🍋 Squeezing some zest into your life..."
 ]
 
-# --- 3. CSS STYLING ---
+# --- 3. CSS STYLING (The "Pretty" Part) ---
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
-    .stApp { background-color: #FFF9F5; font-family: 'Poppins', sans-serif; }
-    h1, h2, h3 { color: #2D3436; font-weight: 600; }
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap');
     
-    .main-header { text-align: center; padding: 20px 0; margin-bottom: 20px; }
-    .main-header h1 { color: #FF6B6B; font-size: 2.5rem; margin: 0; }
-    
-    .food-card { 
-        background: white; border-radius: 20px; overflow: hidden; 
-        box-shadow: 0 10px 25px rgba(0,0,0,0.05); margin-bottom: 10px; border: none;
-        transition: transform 0.2s;
-    }
-    .food-card:hover { transform: translateY(-3px); }
-    
-    .food-img-container { height: 180px; overflow: hidden; position: relative; background: #f0f0f0; }
-    .food-img { width: 100%; height: 100%; object-fit: cover; }
-    .meal-badge { 
-        position: absolute; top: 15px; left: 15px; background-color: #FF6B6B; color: white; 
-        padding: 5px 15px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; 
+    /* GLOBAL APP STYLES */
+    .stApp {
+        background-color: #FFF9F5; /* Cream background */
+        font-family: 'Poppins', sans-serif;
     }
     
-    .food-details { padding: 15px; }
-    .food-title { font-size: 1.1rem; font-weight: 600; color: #2D3436; margin-bottom: 8px; }
-    .food-desc { font-size: 0.85rem; color: #636E72; line-height: 1.4; }
-    .food-meta { margin-top: 15px; padding-top: 15px; border-top: 1px dashed #eee; font-size: 0.8em; color: #B2BEC3; display: flex; justify-content: space-between; }
+    /* REMOVE DEFAULT STREAMLIT PADDING */
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 5rem;
+        max-width: 1000px; /* Keep content centered and readable on wide screens */
+    }
 
-    .ingredients-box { background-color: #fff; border: 2px dashed #FF6B6B; border-radius: 15px; padding: 20px; margin-top: 20px; }
-    .ing-title { color: #FF6B6B; font-weight: 600; font-size: 1.1em; margin-bottom: 10px; }
+    /* HEADER */
+    .main-header {
+        text-align: center;
+        margin-bottom: 30px;
+    }
+    .main-header h1 {
+        color: #FF6B6B;
+        font-weight: 700;
+        font-size: 2.8rem;
+        margin: 0;
+        letter-spacing: -1px;
+    }
+    .main-header p {
+        color: #888;
+        font-size: 1rem;
+        margin-top: 5px;
+    }
 
-    .chef-loading { text-align: center; padding: 40px; background: white; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin: 20px 0; }
-    .chef-loading-text { color: #FF6B6B; font-size: 1.2rem; font-weight: 600; margin-top: 15px; animation: pulse 1.5s infinite; }
+    /* DATE BUTTONS */
+    div.stButton > button[kind="secondary"] {
+        background-color: white;
+        border: 1px solid #eee;
+        color: #555;
+        border-radius: 15px;
+        height: 3em;
+        font-weight: 600;
+        transition: all 0.2s;
+    }
+    div.stButton > button[kind="primary"] {
+        background: linear-gradient(135deg, #FF6B6B 0%, #EE5253 100%);
+        color: white;
+        border: none;
+        border-radius: 15px;
+        height: 3em;
+        font-weight: 600;
+        box-shadow: 0 4px 10px rgba(255, 107, 107, 0.3);
+    }
+
+    /* FOOD CARD CONTAINER */
+    .food-card {
+        background: white;
+        border-radius: 20px 20px 0 0; /* Rounded top only */
+        overflow: hidden;
+        border: 1px solid #f0f0f0;
+        border-bottom: none; /* Connect to button below */
+        position: relative;
+    }
+    
+    .food-img-container {
+        height: 180px;
+        overflow: hidden;
+        position: relative;
+    }
+    .food-img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: transform 0.3s;
+    }
+    .food-card:hover .food-img {
+        transform: scale(1.05);
+    }
+    
+    .meal-badge {
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        background: rgba(255, 255, 255, 0.95);
+        color: #FF6B6B;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.7rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    
+    .food-details {
+        padding: 18px;
+    }
+    .food-title {
+        color: #2D3436;
+        font-size: 1.15rem;
+        font-weight: 700;
+        line-height: 1.3;
+        margin-bottom: 8px;
+        min-height: 3rem; /* Align titles */
+    }
+    .food-desc {
+        color: #636E72;
+        font-size: 0.85rem;
+        line-height: 1.5;
+        min-height: 4.5rem; /* Align descriptions */
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    
+    .food-meta {
+        margin-top: 15px;
+        padding-top: 12px;
+        border-top: 1px dashed #eee;
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.8rem;
+        color: #B2BEC3;
+        font-weight: 600;
+    }
+
+    /* INGREDIENTS SECTION */
+    .ingredients-container {
+        background: white;
+        border-radius: 20px;
+        padding: 25px;
+        margin-top: 25px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+        text-align: center;
+    }
+    .ing-header {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #2D3436;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+    }
+    .pill {
+        display: inline-block;
+        background: #FFF5F5;
+        color: #FF6B6B;
+        padding: 6px 14px;
+        border-radius: 50px;
+        font-size: 0.85rem;
+        margin: 4px;
+        border: 1px solid #FFE3E3;
+        font-weight: 500;
+    }
+
+    /* ACTION BUTTONS (Bottom) */
+    .action-btn-container {
+        margin-top: 20px;
+    }
+
+    /* SWAP BUTTON STYLING (Specific Target) */
+    /* We style the secondary buttons that appear inside columns */
+    div[data-testid="column"] button[kind="secondary"] {
+        border-radius: 0 0 20px 20px; /* Rounded bottom only */
+        border-top: 1px solid #f0f0f0;
+        margin-top: -5px; /* Pull closer to card */
+        width: 100%;
+        background-color: white;
+        color: #FF6B6B;
+        border-color: #f0f0f0;
+    }
+    div[data-testid="column"] button[kind="secondary"]:hover {
+        background-color: #FFF5F5;
+        border-color: #FF6B6B;
+        color: #FF6B6B;
+    }
+
+    /* LOADING ANIMATION */
+    .chef-loading {
+        text-align: center;
+        padding: 40px;
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+        margin: 20px auto;
+        max-width: 500px;
+    }
+    .chef-loading-text {
+        color: #FF6B6B;
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-top: 15px;
+        animation: pulse 1.5s infinite;
+    }
     @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
-
-    div.stButton > button { border-radius: 12px; font-weight: 600; border: none; }
-    div.stButton > button[kind="primary"] { background: linear-gradient(135deg, #FF6B6B 0%, #EE5253 100%); box-shadow: 0 4px 15px rgba(238, 82, 83, 0.4); }
-    div.stButton > button[kind="secondary"] { background: #fff; border: 1px solid #ddd; color: #555; }
     
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} .stDeployButton {display:none;}
     </style>
@@ -96,9 +256,9 @@ def save_memory(prefs):
 def text_to_speech(menu_json):
     date_str = st.session_state.selected_date.strftime("%A, %d %B")
     speech_text = f"Hello! Here is the menu for {date_str}. "
-    speech_text += f"Breakfast will be {menu_json.get('breakfast', {}).get('dish')}. "
-    speech_text += f"For Lunch, please make {menu_json.get('lunch', {}).get('dish')}. "
-    speech_text += f"And for Dinner, we will have {menu_json.get('dinner', {}).get('dish')}. "
+    speech_text += f"Breakfast: {menu_json.get('breakfast', {}).get('dish')}. "
+    speech_text += f"Lunch: {menu_json.get('lunch', {}).get('dish')}. "
+    speech_text += f"Dinner: {menu_json.get('dinner', {}).get('dish')}. "
     if menu_json.get('message'): speech_text += f"Note: {menu_json['message']}"
 
     try:
@@ -158,7 +318,7 @@ def get_food_image(dish_name):
     return None
 
 # ==========================================
-# --- 6. STATE & DATE FIX ---
+# --- 6. STATE & DATE LOGIC ---
 # ==========================================
 if 'preferences' not in st.session_state: st.session_state.preferences = load_memory()
 if 'meal_plans' not in st.session_state: st.session_state.meal_plans = {} 
@@ -187,7 +347,6 @@ with st.sidebar:
             st.rerun()
             
     st.write("---")
-    
     st.write("**Your Restrictions:**")
     st.caption("Click the 'x' to remove an item.")
     current_list = st.session_state.preferences["dislikes"]
@@ -201,63 +360,52 @@ with st.sidebar:
 # --- 7. MAIN UI ---
 st.markdown("<div class='main-header'><h1>🍳 Ammy's Choice</h1><p>Home-cooked meal planning, made simple.</p></div>", unsafe_allow_html=True)
 
-# Date Selection
-cols = st.columns(5)
+# DATE SELECTOR (Centered & Clean)
+date_cols = st.columns([1,1,1,1,1])
 for i in range(5):
     day_date = today_ist + datetime.timedelta(days=i)
     date_key = str(day_date)
     is_selected = (day_date == st.session_state.selected_date)
     btn_type = "primary" if is_selected else "secondary"
-    with cols[i]:
+    with date_cols[i]:
         if st.button(f"{day_date.strftime('%a')}\n{day_date.strftime('%d')}", key=f"btn_{date_key}", type=btn_type, use_container_width=True):
             st.session_state.selected_date = day_date
             st.rerun()
+
 st.markdown("<br>", unsafe_allow_html=True)
 
 selected_date_str = str(st.session_state.selected_date)
 current_menu = st.session_state.meal_plans.get(selected_date_str)
 
-# --- PLACEHOLDERS ---
+# PLACEHOLDERS for Dynamic Interaction
 action_placeholder = st.empty()
-menu_placeholder = st.empty()
 
 # --- REGENERATION LOGIC (SINGLE MEAL) ---
 def regenerate_single_meal(meal_type, current_full_menu):
     dislikes = ", ".join(st.session_state.preferences["dislikes"])
-    
-    # Construct Prompt
     prompt = f"""
     You are a JSON-only API.
-    
-    CONTEXT:
-    Current Menu: {json.dumps(current_full_menu)}
-    User Request: "I don't want the current {meal_type}. Change ONLY the {meal_type} to a completely different vegetarian Indian dish."
-    
-    CONSTRAINTS:
-    1. Keep the other two meals EXACTLY the same.
-    2. Suggest a new {meal_type} that is vegetarian and contains NO {dislikes}.
-    3. Update the 'ingredients' list to reflect this change (remove old {meal_type} ingredients, add new ones).
-    
-    RETURN ONLY THE VALID JSON.
+    CONTEXT: Current Menu: {json.dumps(current_full_menu)}.
+    TASK: Change ONLY {meal_type} to a different vegetarian Indian dish.
+    CONSTRAINTS: NO {dislikes}. Update 'ingredients' accordingly.
+    RETURN ONLY VALID JSON.
     """
-    
-    with st.spinner(f"Whipping up a new {meal_type}..."):
+    with st.spinner(f"🍳 Whipping up a new {meal_type}..."):
         text_resp = call_claude_api(prompt)
         if text_resp:
             new_data = extract_json(text_resp)
             if new_data:
                 st.session_state.meal_plans[selected_date_str] = new_data
-                st.cache_data.clear() # Clear image cache
+                st.cache_data.clear()
                 st.rerun()
-            else:
-                st.error("Chef got confused. Try again.")
-        else:
-            st.error("Chef is unreachable.")
+            else: st.error("Chef got confused. Try again.")
+        else: st.error("Chef is unreachable.")
 
 def generate_menu_ai():
     dislikes = ", ".join(st.session_state.preferences["dislikes"])
     is_weekend = st.session_state.selected_date.weekday() >= 5
     
+    # History check
     past_dishes = []
     for i in range(1, 6):
         prev = st.session_state.selected_date - datetime.timedelta(days=i)
@@ -311,64 +459,71 @@ if not current_menu:
                 st.session_state.meal_plans[selected_date_str] = menu_data
                 st.rerun()
 else:
-    # Render Menu Cards with Individual Swap Buttons
-    def render_card_with_action(meal_type, data):
-        dish_name = data.get('dish', 'Food')
-        meal_key = meal_type.lower()
-        
-        with st.spinner(f"Garnishing {meal_key}..."):
-             ai_image_url = get_food_image(dish_name)
+    # --- RENDER MENU GRID ---
+    # Using columns with 'medium' gap for breathing room
+    c1, c2, c3 = st.columns(3, gap="medium")
+    
+    def render_card_with_action(col, meal_type, data):
+        with col:
+            dish_name = data.get('dish', 'Food')
+            meal_key = meal_type.lower()
+            
+            with st.spinner(f"Loading..."):
+                 ai_image_url = get_food_image(dish_name)
+            final_image_url = ai_image_url if ai_image_url else MEAL_IMAGES.get(meal_key, MEAL_IMAGES["default"])
 
-        if ai_image_url: final_image_url = ai_image_url
-        else: final_image_url = MEAL_IMAGES.get(meal_key, MEAL_IMAGES["default"])
-
-        st.markdown(f"""
-            <div class="food-card">
-                <div class="food-img-container">
-                    <img src="{final_image_url}" class="food-img" alt="{meal_type}">
-                    <span class="meal-badge">{meal_type}</span>
-                </div>
-                <div class="food-details">
-                    <div class="food-title">{dish_name}</div>
-                    <div class="food-desc">{data.get('desc', '')}</div>
-                    <div class="food-meta">
-                        <span>🔥 {data.get('calories', 'N/A')}</span>
-                        <span>🌿 Veg</span>
+            # Render HTML Card
+            st.markdown(f"""
+                <div class="food-card">
+                    <div class="food-img-container">
+                        <img src="{final_image_url}" class="food-img" alt="{meal_type}">
+                        <span class="meal-badge">{meal_type}</span>
+                    </div>
+                    <div class="food-details">
+                        <div class="food-title">{dish_name}</div>
+                        <div class="food-desc">{data.get('desc', '')}</div>
+                        <div class="food-meta">
+                            <span>🔥 {data.get('calories', 'N/A')}</span>
+                            <span>🌿 Veg</span>
+                        </div>
                     </div>
                 </div>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        # --- SWAP BUTTON ---
-        if st.button(f"🔄 Swap {meal_type}", key=f"swap_{meal_key}", use_container_width=True):
-            regenerate_single_meal(meal_key, current_menu)
+            """, unsafe_allow_html=True)
+            
+            # The Button (Styled by CSS to attach to bottom of card)
+            if st.button(f"🔄 Swap {meal_type}", key=f"swap_{meal_key}", use_container_width=True):
+                regenerate_single_meal(meal_key, current_menu)
 
-    c1, c2, c3 = st.columns(3)
-    with c1: render_card_with_action("Breakfast", current_menu.get('breakfast', {}))
-    with c2: render_card_with_action("Lunch", current_menu.get('lunch', {}))
-    with c3: render_card_with_action("Dinner", current_menu.get('dinner', {}))
+    render_card_with_action(c1, "Breakfast", current_menu.get('breakfast', {}))
+    render_card_with_action(c2, "Lunch", current_menu.get('lunch', {}))
+    render_card_with_action(c3, "Dinner", current_menu.get('dinner', {}))
 
-    if "message" in current_menu:
+    # --- INGREDIENTS & FOOTER ---
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    if current_menu.get('message'):
         st.success(f"**Chef's Note:** {current_menu['message']}")
 
     if current_menu.get('ingredients'):
         st.markdown(f"""
-        <div class="ingredients-box">
-            <div class="ing-title">🛒 Ingredients for Today</div>
-            <p style="color: #636E72; font-size: 0.9rem; margin-bottom: 10px;">Here is everything you need to cook these 3 meals:</p>
-            <div style="display: flex; flex-wrap: wrap; gap: 10px;">
-                {''.join([f'<span style="background:#FFF0F0; color:#E17055; padding:5px 10px; border-radius:15px; font-size:0.85em; border:1px solid #FAB1A0;">{item}</span>' for item in current_menu['ingredients']])}
+        <div class="ingredients-container">
+            <div class="ing-header">🛒 Ingredients for Today</div>
+            <div>
+                {''.join([f'<span class="pill">{item}</span>' for item in current_menu['ingredients']])}
             </div>
         </div>
         """, unsafe_allow_html=True)
 
-    c_btn1, c_btn2 = st.columns(2)
-    with c_btn1:
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # Action Buttons Side-by-Side
+    ac1, ac2 = st.columns(2, gap="medium")
+    with ac1:
         if st.button("📲 Share Menu as Audio", use_container_width=True):
             with st.spinner("Generating audio..."):
                 audio_file = text_to_speech(current_menu)
                 if audio_file: st.audio(audio_file, format='audio/mp3', start_time=0)
-    with c_btn2:
+    with ac2:
         if st.button("🔄 Shuffle Whole Menu", use_container_width=True):
             menu_data = generate_menu_ai()
             if menu_data:
