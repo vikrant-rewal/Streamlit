@@ -316,26 +316,41 @@ def call_claude_api(prompt_text):
         return None
 
 @st.cache_data(show_spinner=False, ttl=3600*24)
-def get_food_image_unsplash(dish_name):
-    """Fetch food image from Unsplash API"""
+def get_food_image_pexels(dish_name):
+    """Fetch food image from Pexels API"""
     if not dish_name or dish_name == 'Food':
         return None
     
     try:
+        # Get API key from secrets
+        api_key = st.secrets.get("PEXELS_API_KEY")
+        if not api_key:
+            return None
+        
         # Clean the dish name
         clean_name = dish_name.split('+')[0].strip()
         
-        # Create search query - add 'indian food' for better results
+        # Create search query
         search_query = f"indian {clean_name} food"
         
-        # Unsplash API endpoint (no API key needed for basic usage)
-        url = f"https://source.unsplash.com/800x600/?{search_query}"
+        # Pexels API endpoint
+        url = f"https://api.pexels.com/v1/search?query={search_query}&per_page=1&orientation=landscape"
         
-        # The source.unsplash.com endpoint redirects to an actual image
-        # We can use it directly as an image URL
-        return url
+        headers = {
+            "Authorization": api_key
+        }
+        
+        response = requests.get(url, headers=headers, timeout=5)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('photos') and len(data['photos']) > 0:
+                # Get the medium size image URL
+                return data['photos'][0]['src']['medium']
+        
+        return None
     except Exception as e:
-        print(f"Error fetching Unsplash image: {e}")
+        print(f"Error fetching Pexels image: {e}")
         return None
 
 # ==========================================
@@ -372,7 +387,7 @@ def get_all_planned_dishes_5days():
 
 # --- SIDEBAR ---
 with st.sidebar:
-    st.header("⚙️ Dietary Preferences")
+    st.header("⚙️ Dietary Dislikes")
     
     col1, col2 = st.columns([3, 1])
     with col1:
@@ -387,11 +402,11 @@ with st.sidebar:
             st.rerun()
     
     st.write("---")
-    st.write("**Your Restrictions:**")
+    st.write("**Your Dislikes:**")
     st.caption("Click the 'x' to remove an item.")
     
     current_list = st.session_state.preferences["dislikes"]
-    updated_list = st.multiselect("Edit Restrictions", options=current_list, default=current_list, label_visibility="collapsed")
+    updated_list = st.multiselect("Edit Dislikes", options=current_list, default=current_list, label_visibility="collapsed")
     
     if len(updated_list) < len(current_list):
         st.session_state.preferences["dislikes"] = updated_list
@@ -560,9 +575,9 @@ else:
             calories = data.get('calories', 'N/A')
             meal_key = meal_type.lower()
             
-            # Try to get Unsplash image, fallback to placeholder
-            unsplash_url = get_food_image_unsplash(dish_name)
-            final_image_url = unsplash_url if unsplash_url else MEAL_IMAGES.get(meal_key, MEAL_IMAGES["default"])
+            # Try to get Pexels image, fallback to placeholder
+            pexels_url = get_food_image_pexels(dish_name)
+            final_image_url = pexels_url if pexels_url else MEAL_IMAGES.get(meal_key, MEAL_IMAGES["default"])
             
             st.markdown(f"""
             <div class="food-card">
