@@ -25,7 +25,7 @@ DEFAULT_PREFERENCES = {
     "diet": "Vegetarian"
 }
 
-# Curated image mapping for common Indian dishes
+# Curated image mapping for common Indian dishes - ALL VEGETARIAN
 DISH_IMAGE_MAP = {
     # Breakfast items
     "poha": "https://images.unsplash.com/photo-1606491956689-2ea866880c84?w=800",
@@ -34,34 +34,47 @@ DISH_IMAGE_MAP = {
     "aloo paratha": "https://images.unsplash.com/photo-1617093727343-374698b1b08d?w=800",
     "moong dal cheela": "https://images.unsplash.com/photo-1626074353765-517a681e40be?w=800",
     "besan cheela": "https://images.unsplash.com/photo-1626074353765-517a681e40be?w=800",
-    "corn uttapam": "https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?w=800",
-    "uttapam": "https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?w=800",
+    "corn uttapam": "https://images.unsplash.com/photo-1630383249896-424e482df921?w=800",
+    "uttapam": "https://images.unsplash.com/photo-1630383249896-424e482df921?w=800",
+    "masala dosa": "https://images.unsplash.com/photo-1668236543090-82eba5ee5976?w=800",
+    "idli": "https://images.unsplash.com/photo-1589301760014-d929f3979dbc?w=800",
     
-    # Curries & Main dishes
+    # Paneer dishes
     "paneer butter masala": "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=800",
-    "paneer tikka": "https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?w=800",
+    "paneer tikka": "https://images.unsplash.com/photo-1631452180539-96aca7d48617?w=800",
     "palak paneer": "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=800",
+    "kadai paneer": "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=800",
+    "paneer bhurji": "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=800",
+    
+    # Dal dishes
     "chana masala": "https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=800",
     "channa masala": "https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=800",
     "chole": "https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=800",
     "rajma": "https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=800",
     "dal tadka": "https://images.unsplash.com/photo-1546833998-877b37c2e5c6?w=800",
     "dal fry": "https://images.unsplash.com/photo-1546833998-877b37c2e5c6?w=800",
+    "dal makhani": "https://images.unsplash.com/photo-1546833998-877b37c2e5c6?w=800",
+    
+    # Vegetable curries
     "bhindi": "https://images.unsplash.com/photo-1589621316382-008455b857cd?w=800",
     "bhindi masala": "https://images.unsplash.com/photo-1589621316382-008455b857cd?w=800",
     "aloo gobi": "https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=800",
-    "baingan bharta": "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=800",
+    "baingan bharta": "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=800",
     "kadhi pakoda": "https://images.unsplash.com/photo-1626074353765-517a681e40be?w=800",
     "kadhi": "https://images.unsplash.com/photo-1626074353765-517a681e40be?w=800",
-    "malai kofta": "https://images.unsplash.com/photo-1631452180539-96aca7d48617?w=800",
-    "kofta": "https://images.unsplash.com/photo-1631452180539-96aca7d48617?w=800",
-    "green beans": "https://images.unsplash.com/photo-1604152135912-04a022e23696?w=800",
-    "beans": "https://images.unsplash.com/photo-1604152135912-04a022e23696?w=800",
-    "green beans poriyal": "https://images.unsplash.com/photo-1604152135912-04a022e23696?w=800",
+    "malai kofta": "https://images.unsplash.com/photo-1626074353765-517a681e40be?w=800",
+    "kofta": "https://images.unsplash.com/photo-1626074353765-517a681e40be?w=800",
+    "green beans": "https://images.unsplash.com/photo-1622205313162-be1d5712a43f?w=800",
+    "beans": "https://images.unsplash.com/photo-1622205313162-be1d5712a43f?w=800",
+    "green beans poriyal": "https://images.unsplash.com/photo-1622205313162-be1d5712a43f?w=800",
+    "poriyal": "https://images.unsplash.com/photo-1622205313162-be1d5712a43f?w=800",
+    "aloo matar": "https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=800",
+    "matar paneer": "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=800",
     
     # Rice dishes
     "jeera rice": "https://images.unsplash.com/photo-1596797038530-2c107229654b?w=800",
     "pulao": "https://images.unsplash.com/photo-1596797038530-2c107229654b?w=800",
+    "veg biryani": "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=800",
     "biryani": "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=800",
     
     # Breads
@@ -69,13 +82,14 @@ DISH_IMAGE_MAP = {
     "chapati": "https://images.unsplash.com/photo-1617093727343-374698b1b08d?w=800",
     "naan": "https://images.unsplash.com/photo-1617093727343-374698b1b08d?w=800",
     "whole wheat roti": "https://images.unsplash.com/photo-1617093727343-374698b1b08d?w=800",
+    "bharta": "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=800",
 }
 
 MEAL_IMAGES = {
-    "breakfast": "https://images.unsplash.com/photo-1589302168068-964664d93dc0?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-    "lunch": "https://images.unsplash.com/photo-1546833999-b9f581a1996d?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-    "dinner": "https://images.unsplash.com/photo-1585937421612-70a008356fbe?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-    "default": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
+    "breakfast": "https://images.unsplash.com/photo-1606491956689-2ea866880c84?w=800",
+    "lunch": "https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=800",
+    "dinner": "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=800",
+    "default": "https://images.unsplash.com/photo-1546833998-877b37c2e5c6?w=800"
 }
 
 LOADING_MESSAGES = [
