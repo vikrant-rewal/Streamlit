@@ -25,6 +25,52 @@ DEFAULT_PREFERENCES = {
     "diet": "Vegetarian"
 }
 
+# Curated image mapping for common Indian dishes
+DISH_IMAGE_MAP = {
+    # Breakfast items
+    "poha": "https://images.unsplash.com/photo-1606491956689-2ea866880c84?w=800",
+    "upma": "https://images.unsplash.com/photo-1630383249896-424e482df921?w=800",
+    "paratha": "https://images.unsplash.com/photo-1617093727343-374698b1b08d?w=800",
+    "aloo paratha": "https://images.unsplash.com/photo-1617093727343-374698b1b08d?w=800",
+    "moong dal cheela": "https://images.unsplash.com/photo-1626074353765-517a681e40be?w=800",
+    "besan cheela": "https://images.unsplash.com/photo-1626074353765-517a681e40be?w=800",
+    "corn uttapam": "https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?w=800",
+    "uttapam": "https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?w=800",
+    
+    # Curries & Main dishes
+    "paneer butter masala": "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=800",
+    "paneer tikka": "https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?w=800",
+    "palak paneer": "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=800",
+    "chana masala": "https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=800",
+    "channa masala": "https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=800",
+    "chole": "https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=800",
+    "rajma": "https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=800",
+    "dal tadka": "https://images.unsplash.com/photo-1546833998-877b37c2e5c6?w=800",
+    "dal fry": "https://images.unsplash.com/photo-1546833998-877b37c2e5c6?w=800",
+    "bhindi": "https://images.unsplash.com/photo-1589621316382-008455b857cd?w=800",
+    "bhindi masala": "https://images.unsplash.com/photo-1589621316382-008455b857cd?w=800",
+    "aloo gobi": "https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=800",
+    "baingan bharta": "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=800",
+    "kadhi pakoda": "https://images.unsplash.com/photo-1626074353765-517a681e40be?w=800",
+    "kadhi": "https://images.unsplash.com/photo-1626074353765-517a681e40be?w=800",
+    "malai kofta": "https://images.unsplash.com/photo-1631452180539-96aca7d48617?w=800",
+    "kofta": "https://images.unsplash.com/photo-1631452180539-96aca7d48617?w=800",
+    "green beans": "https://images.unsplash.com/photo-1604152135912-04a022e23696?w=800",
+    "beans": "https://images.unsplash.com/photo-1604152135912-04a022e23696?w=800",
+    "green beans poriyal": "https://images.unsplash.com/photo-1604152135912-04a022e23696?w=800",
+    
+    # Rice dishes
+    "jeera rice": "https://images.unsplash.com/photo-1596797038530-2c107229654b?w=800",
+    "pulao": "https://images.unsplash.com/photo-1596797038530-2c107229654b?w=800",
+    "biryani": "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=800",
+    
+    # Breads
+    "roti": "https://images.unsplash.com/photo-1617093727343-374698b1b08d?w=800",
+    "chapati": "https://images.unsplash.com/photo-1617093727343-374698b1b08d?w=800",
+    "naan": "https://images.unsplash.com/photo-1617093727343-374698b1b08d?w=800",
+    "whole wheat roti": "https://images.unsplash.com/photo-1617093727343-374698b1b08d?w=800",
+}
+
 MEAL_IMAGES = {
     "breakfast": "https://images.unsplash.com/photo-1589302168068-964664d93dc0?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
     "lunch": "https://images.unsplash.com/photo-1546833999-b9f581a1996d?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
@@ -315,43 +361,25 @@ def call_claude_api(prompt_text):
     except:
         return None
 
-@st.cache_data(show_spinner=False, ttl=3600*24)
-def get_food_image_pexels(dish_name):
-    """Fetch food image from Pexels API"""
+def get_food_image(dish_name):
+    """Get food image from curated mapping or fallback to meal type"""
     if not dish_name or dish_name == 'Food':
         return None
     
-    try:
-        # Get API key from secrets
-        api_key = st.secrets.get("PEXELS_API_KEY")
-        if not api_key:
-            return None
-        
-        # Clean the dish name
-        clean_name = dish_name.split('+')[0].strip()
-        
-        # Create search query
-        search_query = f"indian {clean_name} food"
-        
-        # Pexels API endpoint
-        url = f"https://api.pexels.com/v1/search?query={search_query}&per_page=1&orientation=landscape"
-        
-        headers = {
-            "Authorization": api_key
-        }
-        
-        response = requests.get(url, headers=headers, timeout=5)
-        
-        if response.status_code == 200:
-            data = response.json()
-            if data.get('photos') and len(data['photos']) > 0:
-                # Get the medium size image URL
-                return data['photos'][0]['src']['medium']
-        
-        return None
-    except Exception as e:
-        print(f"Error fetching Pexels image: {e}")
-        return None
+    # Clean the dish name and convert to lowercase
+    clean_name = dish_name.split('+')[0].strip().lower()
+    
+    # Try exact match first
+    if clean_name in DISH_IMAGE_MAP:
+        return DISH_IMAGE_MAP[clean_name]
+    
+    # Try partial matching for dishes with additional words
+    for key in DISH_IMAGE_MAP:
+        if key in clean_name or clean_name in key:
+            return DISH_IMAGE_MAP[key]
+    
+    # No match found
+    return None
 
 # ==========================================
 # --- 6. STATE & DATE LOGIC ---
@@ -575,9 +603,9 @@ else:
             calories = data.get('calories', 'N/A')
             meal_key = meal_type.lower()
             
-            # Try to get Pexels image, fallback to placeholder
-            pexels_url = get_food_image_pexels(dish_name)
-            final_image_url = pexels_url if pexels_url else MEAL_IMAGES.get(meal_key, MEAL_IMAGES["default"])
+            # Get image from curated mapping or fallback to meal-specific placeholder
+            dish_image = get_food_image(dish_name)
+            final_image_url = dish_image if dish_image else MEAL_IMAGES.get(meal_key, MEAL_IMAGES["default"])
             
             st.markdown(f"""
             <div class="food-card">
