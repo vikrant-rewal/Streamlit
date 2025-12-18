@@ -98,7 +98,7 @@ st.markdown("""
         border: 1px solid #f0f0f0;
         border-bottom: none;
         position: relative;
-        height: 100%; /* Ensure full height alignment */
+        height: 100%;
     }
     
     .food-img-container {
@@ -315,6 +315,20 @@ today_ist = datetime.datetime.now(IST).date()
 if 'selected_date' not in st.session_state: st.session_state.selected_date = today_ist
 if st.session_state.selected_date < today_ist: st.session_state.selected_date = today_ist
 
+# --- 7. GLOBAL UNIQUENESS LOGIC ---
+def get_all_planned_dishes_5days():
+    all_dishes = []
+    # Check the next 5 days from today
+    for i in range(5):
+        d = today_ist + datetime.timedelta(days=i)
+        d_key = str(d)
+        if d_key in st.session_state.meal_plans:
+            p = st.session_state.meal_plans[d_key]
+            for m in ['breakfast', 'lunch', 'dinner']:
+                if m in p and 'dish' in p[m]:
+                    all_dishes.append(p[m]['dish'])
+    return list(set(filter(None, all_dishes)))
+
 # --- SIDEBAR ---
 with st.sidebar:
     st.header("⚙️ Dietary Preferences")
@@ -341,7 +355,7 @@ with st.sidebar:
         save_memory(st.session_state.preferences)
         st.rerun()
 
-# --- 7. MAIN UI ---
+# --- MAIN UI ---
 st.markdown("<div class='main-header'><h1>🍳 Ammy's Choice</h1><p>Home-cooked meal planning, made simple.</p></div>", unsafe_allow_html=True)
 
 # DATE SELECTOR
@@ -366,10 +380,17 @@ action_placeholder = st.empty()
 # --- REGENERATION LOGIC (SINGLE MEAL) ---
 def regenerate_single_meal(meal_type, current_full_menu):
     dislikes = ", ".join(st.session_state.preferences["dislikes"])
-    # STRICT SCHEMA IN PROMPT
+    global_planned_dishes = get_all_planned_dishes_5days()
+    global_context_str = ", ".join(global_planned_dishes)
+
     prompt = f"""
     You are a JSON-only API.
-    CONTEXT: Current Menu: {json.dumps(current_full_menu)}.
+    CONTEXT: Current Menu for today: {json.dumps(current_full_menu)}.
+    
+    GLOBAL CONSTRAINT (CRITICAL): The user is planning a 5-day menu.
+    The following dishes are ALREADY planned for other days/meals: {global_context_str}.
+    You MUST NOT repeat any of these. Generate a COMPLETELY NEW option.
+    
     TASK: Change ONLY {meal_type} to a different vegetarian Indian dish.
     CONSTRAINTS: NO {dislikes}. Update 'ingredients'.
     
@@ -387,7 +408,7 @@ def regenerate_single_meal(meal_type, current_full_menu):
         "message": "..."
     }}
     """
-    with st.spinner(f"🍳 Whipping up a new {meal_type}..."):
+    with st.spinner(f"🍳 Whipping up a unique {meal_type}..."):
         text_resp = call_claude_api(prompt)
         if text_resp:
             new_data = extract_json(text_resp)
@@ -402,27 +423,23 @@ def generate_menu_ai():
     dislikes = ", ".join(st.session_state.preferences["dislikes"])
     is_weekend = st.session_state.selected_date.weekday() >= 5
     
-    past_dishes = []
-    for i in range(1, 6):
-        prev = st.session_state.selected_date - datetime.timedelta(days=i)
-        if str(prev) in st.session_state.meal_plans:
-            p = st.session_state.meal_plans[str(prev)]
-            for m in ['breakfast','lunch','dinner']: 
-                if m in p: past_dishes.append(p[m].get('dish',''))
-    past_str = ", ".join(list(set(filter(None, past_dishes)))) or "None"
+    global_planned_dishes = get_all_planned_dishes_5days()
+    global_context_str = ", ".join(global_planned_dishes) if global_planned_dishes else "None"
     
     date_display = st.session_state.selected_date.strftime("%A, %d %b")
 
-    # STRICT SCHEMA IN MAIN PROMPT
     prompt = f"""
     You are an expert Vegetarian Indian Home Chef.
     Context: Planning meals for {date_display}. Weekend: {"Yes" if is_weekend else "No"}.
     Constraints: Vegetarian. NO {dislikes}. NO South Indian (unless requested).
     
+    UNIQUENESS RULE (HIGHEST PRIORITY): 
+    The following dishes are ALREADY planned for this week: {global_context_str}.
+    DO NOT REPEAT ANY DISH FROM THIS LIST.
+    
     VARIETY RULES:
-    1. HISTORY: Recently eaten: {past_str}.
-    2. PANEER RULE: If "Paneer" in history, NO Paneer for Dinner. Serve Soy Chaap, Malai Kofta, Rajma, Chole.
-    3. FAVORITES: Rotate Bhindi, Channa, Rajma, Beans.
+    1. PANEER RULE: If "Paneer" is in the 'already planned' list above, try to avoid it today unless it's a completely different preparation (e.g. Bhurji vs Butter Masala). prefer alternatives like Soy, Kofta, Rajma.
+    2. FAVORITES: Rotate Bhindi, Channa, Rajma, Beans.
     
     TASK: Generate menu & shopping list.
     
@@ -455,14 +472,13 @@ def generate_menu_ai():
         st.error("Chef's handwriting was messy. Try again.")
     return None
 
+# --- AUTO-GENERATION LOGIC (NO BUTTON) ---
 if not current_menu:
-    with action_placeholder.container():
-        st.info(f"No plan for {st.session_state.selected_date.strftime('%A')}. Let's make one!")
-        if st.button("✨ Create Menu", type="primary", use_container_width=True):
-            menu_data = generate_menu_ai()
-            if menu_data:
-                st.session_state.meal_plans[selected_date_str] = menu_data
-                st.rerun()
+    # Trigger generation automatically if menu is missing
+    menu_data = generate_menu_ai()
+    if menu_data:
+        st.session_state.meal_plans[selected_date_str] = menu_data
+        st.rerun()
 else:
     # --- RENDER MENU GRID ---
     c1, c2, c3 = st.columns(3, gap="medium")
@@ -470,7 +486,6 @@ else:
     def render_card_with_action(col, meal_type, data):
         with col:
             dish_name = data.get('dish', 'Food')
-            # FALLBACK IF DESC/CALORIES MISSING
             desc = data.get('desc', 'A delicious and nutritious vegetarian meal.')
             calories = data.get('calories', 'N/A')
             meal_key = meal_type.lower()
