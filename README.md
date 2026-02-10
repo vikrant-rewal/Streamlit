@@ -12,12 +12,9 @@ No. For your use case, a single HTML page is enough.
 
 Use a full React/Android app only if you need app-store distribution, offline data sync, push notifications, or deep native integrations.
 
-## Credentials needed
+## Credentials
 
-1. **Gemini API key (required)**
-   - Used to generate menu text.
-2. **Pexels API key (optional)**
-   - Used to fetch a more accurate dish image matching the generated menu.
+This HTML page now uses credentials embedded directly in `menu-planner.html` (hidden from the UI), so users are not prompted for keys.
 
 ## Run the HTML page
 
@@ -33,7 +30,7 @@ Then open:
 http://localhost:8080/menu-planner.html
 ```
 
-On first load, paste your Gemini/Pexels keys and click **Save Keys Locally** so you won't be asked again in that browser.
+No key input is required in the UI.
 
 ## Why menu images were incorrect before
 

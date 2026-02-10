@@ -32,7 +32,7 @@
     h1 { margin: 0 0 8px; }
     p { margin: 0; color: var(--muted); }
     label { display:block; font-weight: 600; margin-bottom: 6px; }
-    input, textarea {
+    textarea {
       width: 100%;
       border: 1px solid #d1d5db;
       border-radius: 10px;
@@ -91,25 +91,16 @@
     <div class="card">
       <div class="grid">
         <div>
-          <label for="geminiKey">Gemini API key (required)</label>
-          <input id="geminiKey" type="password" placeholder="AIza..." />
-        </div>
-        <div>
-          <label for="pexelsKey">Pexels API key (optional, for better menu image)</label>
-          <input id="pexelsKey" type="password" placeholder="Optional" />
-        </div>
-        <div>
           <label for="prefs">Permanent preferences/dislikes</label>
           <textarea id="prefs" placeholder="No broccoli, low oil, no idli..."></textarea>
         </div>
       </div>
       <div class="row">
         <button id="generateBtn">Generate Menu</button>
-        <button id="saveKeysBtn" class="ghost">Save Keys Locally</button>
         <button id="clearBtn" class="ghost">Clear Saved Preferences</button>
       </div>
       <div id="status"></div>
-      <div class="small">Keys are only stored in your browser localStorage on this device.</div>
+      <div class="small">Credentials are preconfigured in this page code.</div>
     </div>
 
     <div class="card">
@@ -126,32 +117,20 @@ Generate breakfast, lunch, and dinner.
 Keep it homely, healthy, and non-repetitive.
 Return exactly this format:
 Good Morning! Here is today's menu plan:\n\n🌞 Breakfast: ...\n🥘 Lunch: ...\n🌙 Dinner: ...`;
+    const GEMINI_API_KEY = 'AIzaSyBCuw056u_WZcTDhSV-CF0qDAosuR03Y5g';
+    const PEXELS_API_KEY = 'KBGQHtjULf9EYfXTYgHxSbGBIWmj8vZUj8hYMPWgRIbJuOOqo05U59cC';
 
     const generateBtn = document.getElementById('generateBtn');
     const clearBtn = document.getElementById('clearBtn');
-    const saveKeysBtn = document.getElementById('saveKeysBtn');
     const statusEl = document.getElementById('status');
     const menuEl = document.getElementById('menu');
     const imageEl = document.getElementById('menuImage');
     const imageNote = document.getElementById('imageNote');
-    const keyEl = document.getElementById('geminiKey');
-    const pexelsEl = document.getElementById('pexelsKey');
     const prefsEl = document.getElementById('prefs');
 
     const STORE_PREFS = 'ammy_html_preferences';
-    const STORE_GEMINI_KEY = 'ammy_html_gemini_key';
-    const STORE_PEXELS_KEY = 'ammy_html_pexels_key';
 
     prefsEl.value = localStorage.getItem(STORE_PREFS) || '';
-    keyEl.value = localStorage.getItem(STORE_GEMINI_KEY) || '';
-    pexelsEl.value = localStorage.getItem(STORE_PEXELS_KEY) || '';
-
-    saveKeysBtn.onclick = () => {
-      localStorage.setItem(STORE_GEMINI_KEY, keyEl.value.trim());
-      localStorage.setItem(STORE_PEXELS_KEY, pexelsEl.value.trim());
-      statusEl.textContent = 'Keys saved locally in this browser.';
-      statusEl.className = 'ok';
-    };
 
     clearBtn.onclick = () => {
       localStorage.removeItem(STORE_PREFS);
@@ -182,19 +161,11 @@ Good Morning! Here is today's menu plan:\n\n🌞 Breakfast: ...\n🥘 Lunch: ...
     }
 
     generateBtn.onclick = async () => {
-      const key = keyEl.value.trim();
       const prefs = prefsEl.value.trim();
-      const pexelsKey = pexelsEl.value.trim();
-
-      if (!key) {
-        statusEl.textContent = 'Please provide Gemini API key.';
-        statusEl.className = '';
-        return;
-      }
+      const key = GEMINI_API_KEY;
+      const pexelsKey = PEXELS_API_KEY;
 
       localStorage.setItem(STORE_PREFS, prefs);
-      localStorage.setItem(STORE_GEMINI_KEY, key);
-      localStorage.setItem(STORE_PEXELS_KEY, pexelsKey);
       generateBtn.disabled = true;
       statusEl.textContent = 'Generating menu...';
       statusEl.className = '';
