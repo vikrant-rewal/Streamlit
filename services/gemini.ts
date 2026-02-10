@@ -2,10 +2,12 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { SYSTEM_INSTRUCTION } from "../constants";
 
 const getAiClient = () => {
-  if (!process.env.API_KEY) {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_API_KEY;
+
+  if (!apiKey) {
     throw new Error("API Key is missing");
   }
-  return new GoogleGenAI({ apiKey: process.env.API_KEY });
+  return new GoogleGenAI({ apiKey });
 };
 
 export const generateDailyMenu = async (isWeekend: boolean, history: string[], preferences: string): Promise<string> => {
