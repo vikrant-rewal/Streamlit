@@ -4,7 +4,7 @@ You asked for a simpler approach: **no full app required**.
 
 This repo now includes a standalone HTML page:
 
-- `menu-planner.html` → open in browser and generate menus directly.
+- `docs/index.html` → ready for GitHub Pages hosting and direct browser use.
 
 ## Do we really need an app?
 
@@ -14,7 +14,7 @@ Use a full React/Android app only if you need app-store distribution, offline da
 
 ## Credentials
 
-This HTML page now uses credentials embedded directly in `menu-planner.html` (hidden from the UI), so users are not prompted for keys.
+This HTML page now uses credentials embedded directly in `docs/index.html` (hidden from the UI), so users are not prompted for keys.
 
 ## Run the HTML page
 
@@ -27,7 +27,7 @@ python3 -m http.server 8080
 Then open:
 
 ```text
-http://localhost:8080/menu-planner.html
+http://localhost:8080/docs/
 ```
 
 No key input is required in the UI.
@@ -37,3 +37,8 @@ No key input is required in the UI.
 The earlier Streamlit flow used a fixed dish→image map. If the generated dish text didn’t exactly match map keys, image quality/match dropped.
 
 The HTML page improves this by optionally doing live dish image search via Pexels.
+
+## GitHub Pages
+
+This structure is GitHub Pages-friendly by default because the page is at `docs/index.html`.
+In your repository settings, set Pages source to the `main` branch `/docs` folder.
