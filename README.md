@@ -1,51 +1,39 @@
 # Ammy's Choice Meal Planner
 
-You asked for a simpler approach: **no full app required**.
+This repository now includes a standalone GitHub Pages-ready planner at:
 
-This repo now includes a standalone HTML page:
+- `docs/index.html`
 
-- `docs/index.html` → ready for GitHub Pages hosting and direct browser use.
+## What is implemented in the HTML page
 
-## Do we really need an app?
+- 5-day selector (today + next 4 days)
+- Auto-generate menu for a day if missing
+- Whole-menu shuffle
+- Individual meal swap (`Breakfast`, `Lunch`, `Dinner`)
+- Preference save/clear
+- Voice output (speech synthesis)
+- Ingredients section for ordering
+- Dish images for all 3 meals (via Pexels lookup)
+- Uniqueness guard across 5-day planning (used in both full generation and single-meal reshuffle prompts)
 
-No. For your use case, a single HTML page is enough.
+## GitHub Pages hosting
 
-Use a full React/Android app only if you need app-store distribution, offline data sync, push notifications, or deep native integrations.
+In GitHub repo settings:
 
-## Credentials
+1. Go to **Settings → Pages**
+2. Set Source to **Deploy from a branch**
+3. Select branch `main` and folder `/docs`
 
-This HTML page now uses credentials embedded directly in `docs/index.html` (hidden from the UI), so users are not prompted for keys.
+Your page will be served from your GitHub Pages URL.
 
-### Controls available in UI
-
-- **Save Preferences**: stores dislikes/preferences in browser local storage.
-- **Reshuffle Full Menu**: regenerates breakfast/lunch/dinner.
-- **Reshuffle (per item)**: regenerate only Breakfast, Lunch, or Dinner while keeping others.
-- **Voice Output**: reads current menu aloud using browser speech synthesis.
-
-## Run the HTML page
-
-Because browser APIs can block some calls from `file://`, run a tiny local server:
+## Local run
 
 ```bash
 python3 -m http.server 8080
 ```
 
-Then open:
+Open:
 
 ```text
 http://localhost:8080/docs/
 ```
-
-No key input is required in the UI.
-
-## Why menu images were incorrect before
-
-The earlier Streamlit flow used a fixed dish→image map. If the generated dish text didn’t exactly match map keys, image quality/match dropped.
-
-The HTML page improves this by optionally doing live dish image search via Pexels.
-
-## GitHub Pages
-
-This structure is GitHub Pages-friendly by default because the page is at `docs/index.html`.
-In your repository settings, set Pages source to the `main` branch `/docs` folder.
