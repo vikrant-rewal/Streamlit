@@ -169,7 +169,15 @@ function todayIST() {
 }
 
 function fmtDateKey(d) {
-  return d.toISOString().slice(0,10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function parseDateKey(dateKey) {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  return new Date(y, m - 1, d);
 }
 
 function nextFiveDays() {
@@ -297,7 +305,9 @@ function mealCard(mealKey, plan) {
 
 function renderCurrentPlan() {
   const plan = state.plans[state.selectedDate];
-  menuHeadingEl.textContent = `Menu for ${state.selectedDate}`;
+  const selectedDate = parseDateKey(state.selectedDate);
+  const pretty = selectedDate.toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' });
+  menuHeadingEl.textContent = `Menu for ${pretty}`;
   mealsGridEl.innerHTML = '';
   if (!plan) {
     chefsNoteEl.textContent = 'Generating menu...';
@@ -339,7 +349,7 @@ async function callGeminiJSON(prompt) {
 
 function makeGeneratePrompt() {
   const currentDate = state.selectedDate;
-  const isWeekend = [0,6].includes(new Date(currentDate).getDay());
+  const isWeekend = [0,6].includes(parseDateKey(currentDate).getDay());
   const dislikes = prefsEl.value.trim() || 'None';
   const alreadyPlanned = getAllPlannedDishes5Days(currentDate);
 
