@@ -16,6 +16,13 @@ Use a full React/Android app only if you need app-store distribution, offline da
 
 This HTML page now uses credentials embedded directly in `docs/index.html` (hidden from the UI), so users are not prompted for keys.
 
+### Controls available in UI
+
+- **Save Preferences**: stores dislikes/preferences in browser local storage.
+- **Reshuffle Full Menu**: regenerates breakfast/lunch/dinner.
+- **Reshuffle (per item)**: regenerate only Breakfast, Lunch, or Dinner while keeping others.
+- **Voice Output**: reads current menu aloud using browser speech synthesis.
+
 ## Run the HTML page
 
 Because browser APIs can block some calls from `file://`, run a tiny local server:
