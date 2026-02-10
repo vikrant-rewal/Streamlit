@@ -1,20 +1,51 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Ammy's Choice Meal Planner
 
-# Run and deploy your AI Studio app
+You asked for a simpler approach: **no full app required**.
 
-This contains everything you need to run your app locally.
+This repo now includes a standalone HTML page:
 
-View your app in AI Studio: https://ai.studio/apps/drive/1FyL00St-u6-5DCpDdoH-HkUFXssfXW1k
+- `docs/index.html` → ready for GitHub Pages hosting and direct browser use.
 
-## Run Locally
+## Do we really need an app?
 
-**Prerequisites:**  Node.js
+No. For your use case, a single HTML page is enough.
 
+Use a full React/Android app only if you need app-store distribution, offline data sync, push notifications, or deep native integrations.
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Credentials
+
+This HTML page now uses credentials embedded directly in `docs/index.html` (hidden from the UI), so users are not prompted for keys.
+
+### Controls available in UI
+
+- **Save Preferences**: stores dislikes/preferences in browser local storage.
+- **Reshuffle Full Menu**: regenerates breakfast/lunch/dinner.
+- **Reshuffle (per item)**: regenerate only Breakfast, Lunch, or Dinner while keeping others.
+- **Voice Output**: reads current menu aloud using browser speech synthesis.
+
+## Run the HTML page
+
+Because browser APIs can block some calls from `file://`, run a tiny local server:
+
+```bash
+python3 -m http.server 8080
+```
+
+Then open:
+
+```text
+http://localhost:8080/docs/
+```
+
+No key input is required in the UI.
+
+## Why menu images were incorrect before
+
+The earlier Streamlit flow used a fixed dish→image map. If the generated dish text didn’t exactly match map keys, image quality/match dropped.
+
+The HTML page improves this by optionally doing live dish image search via Pexels.
+
+## GitHub Pages
+
+This structure is GitHub Pages-friendly by default because the page is at `docs/index.html`.
+In your repository settings, set Pages source to the `main` branch `/docs` folder.
