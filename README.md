@@ -1,20 +1,42 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Ammy's Choice Meal Planner
 
-# Run and deploy your AI Studio app
+You asked for a simpler approach: **no full app required**.
 
-This contains everything you need to run your app locally.
+This repo now includes a standalone HTML page:
 
-View your app in AI Studio: https://ai.studio/apps/drive/1FyL00St-u6-5DCpDdoH-HkUFXssfXW1k
+- `menu-planner.html` → open in browser and generate menus directly.
 
-## Run Locally
+## Do we really need an app?
 
-**Prerequisites:**  Node.js
+No. For your use case, a single HTML page is enough.
 
+Use a full React/Android app only if you need app-store distribution, offline data sync, push notifications, or deep native integrations.
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Credentials needed
+
+1. **Gemini API key (required)**
+   - Used to generate menu text.
+2. **Pexels API key (optional)**
+   - Used to fetch a more accurate dish image matching the generated menu.
+
+## Run the HTML page
+
+Because browser APIs can block some calls from `file://`, run a tiny local server:
+
+```bash
+python3 -m http.server 8080
+```
+
+Then open:
+
+```text
+http://localhost:8080/menu-planner.html
+```
+
+On first load, paste your Gemini/Pexels keys and click **Save Keys Locally** so you won't be asked again in that browser.
+
+## Why menu images were incorrect before
+
+The earlier Streamlit flow used a fixed dish→image map. If the generated dish text didn’t exactly match map keys, image quality/match dropped.
+
+The HTML page improves this by optionally doing live dish image search via Pexels.
