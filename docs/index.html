@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ammy's Choice — 5-Day Meal Planner</title>
+  <style>
+    :root {
+      --orange: #f97316;
+      --orange-dark: #ea580c;
+      --muted: #6b7280;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: linear-gradient(180deg, #fff7ed 0%, #ffedd5 100%);
+      min-height: 100vh;
+      color: #1f2937;
+      padding: 24px;
+    }
+    .wrap { max-width: 1050px; margin: 0 auto; }
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.08);
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    h1,h2,h3,p { margin: 0; }
+    .muted { color: var(--muted); }
+    textarea {
+      width: 100%;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      min-height: 84px;
+      resize: vertical;
+    }
+    .row { display:flex; gap:10px; flex-wrap:wrap; }
+    .row-between { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+    button {
+      border: 0;
+      background: var(--orange);
+      color: #fff;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    button:hover { background: var(--orange-dark); }
+    button:disabled { opacity: .6; cursor:not-allowed; }
+    .ghost { background:#fff; color:#374151; border:1px solid #d1d5db; }
+    .selected-day { background: #fff1e8; border-color: #fb923c; color:#9a3412; }
+    #status { font-size: 13px; color: #9a3412; min-height: 18px; margin-top:8px; }
+    .ok { color: #166534 !important; }
+
+    .meals-grid { display:grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap:14px; }
+    @media (max-width: 900px) { .meals-grid { grid-template-columns: 1fr; } }
+    .meal-card {
+      background: #fffaf5;
+      border: 1px solid #fed7aa;
+      border-radius: 12px;
+      overflow: hidden;
+      display:flex;
+      flex-direction:column;
+    }
+    .meal-image { width:100%; height:180px; object-fit:cover; background:#f3f4f6; }
+    .meal-content { padding:12px; display:flex; flex-direction:column; gap:8px; }
+    .meal-title { font-weight:700; }
+    .meal-dish { font-size: 1.05rem; font-weight:700; }
+    .meal-desc { color:#4b5563; font-size:.92rem; min-height: 42px; }
+    .meta { font-size:.8rem; color:#6b7280; }
+    .ingredients-wrap {
+      margin-top: 14px;
+      border-top: 1px dashed #e5e7eb;
+      padding-top: 12px;
+    }
+    .pill {
+      display:inline-block;
+      margin:4px;
+      background:#fff1f2;
+      border:1px solid #fecdd3;
+      border-radius:999px;
+      padding:6px 10px;
+      font-size:.83rem;
+      color:#be123c;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>🍳 Ammy's Choice</h1>
+      <p class="muted">5-day vegetarian planner with unique meals, per-meal swap, ingredients, and voice output.</p>
+    </div>
+
+    <div class="card">
+      <div class="row-between">
+        <h3>Select Day</h3>
+        <div id="dayButtons" class="row"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <label for="prefs"><strong>Permanent preferences / dislikes</strong></label>
+      <textarea id="prefs" placeholder="No broccoli, low oil, no idli..."></textarea>
+      <div class="row" style="margin-top:10px">
+        <button id="generateBtn">Generate Menu</button>
+        <button id="savePrefsBtn" class="ghost">Save Preferences</button>
+        <button id="clearPrefsBtn" class="ghost">Clear Preferences</button>
+      </div>
+      <div id="status"></div>
+      <div class="muted" style="font-size:.8rem; margin-top:5px">Credentials are preconfigured in code.</div>
+    </div>
+
+    <div class="card">
+      <div class="row-between">
+        <h3 id="menuHeading">Today's Menu</h3>
+        <div class="row">
+          <button id="reshuffleAllBtn" class="ghost">🔄 Shuffle Whole Menu</button>
+          <button id="voiceBtn" class="ghost">📲 Share Menu as Audio</button>
+        </div>
+      </div>
+      <p id="chefsNote" class="muted" style="margin-top:8px"></p>
+      <div id="mealsGrid" class="meals-grid" style="margin-top:12px"></div>
+      <div class="ingredients-wrap">
+        <h3>🛒 Ingredients for Today</h3>
+        <div id="ingredients"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const GEMINI_API_KEY = 'AIzaSyBCuw056u_WZcTDhSV-CF0qDAosuR03Y5g';
+const PEXELS_API_KEY = 'KBGQHtjULf9EYfXTYgHxSbGBIWmj8vZUj8hYMPWgRIbJuOOqo05U59cC';
+
+const SYSTEM_INSTRUCTION = `You are an expert Vegetarian Indian Home Chef for Mumbai families.
+Always produce practical home-cooked meals, healthy and non-repetitive.`;
+
+const PREFS_KEY = 'ammy_html_preferences';
+const PLANS_KEY = 'ammy_html_meal_plans_v2';
+
+const state = {
+  selectedDate: null,
+  plans: {},
+};
+
+const prefsEl = document.getElementById('prefs');
+const statusEl = document.getElementById('status');
+const dayButtonsEl = document.getElementById('dayButtons');
+const mealsGridEl = document.getElementById('mealsGrid');
+const ingredientsEl = document.getElementById('ingredients');
+const chefsNoteEl = document.getElementById('chefsNote');
+const menuHeadingEl = document.getElementById('menuHeading');
+const generateBtn = document.getElementById('generateBtn');
+const reshuffleAllBtn = document.getElementById('reshuffleAllBtn');
+const savePrefsBtn = document.getElementById('savePrefsBtn');
+const clearPrefsBtn = document.getElementById('clearPrefsBtn');
+const voiceBtn = document.getElementById('voiceBtn');
+
+prefsEl.value = localStorage.getItem(PREFS_KEY) || '';
+state.plans = JSON.parse(localStorage.getItem(PLANS_KEY) || '{}');
+
+function todayIST() {
+  const now = new Date();
+  return new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+}
+
+function fmtDateKey(d) {
+  return d.toISOString().slice(0,10);
+}
+
+function nextFiveDays() {
+  const t = todayIST();
+  const base = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+  const days = [];
+  for (let i=0;i<5;i++) {
+    const d = new Date(base);
+    d.setDate(base.getDate()+i);
+    days.push(d);
+  }
+  return days;
+}
+
+function savePlans() {
+  localStorage.setItem(PLANS_KEY, JSON.stringify(state.plans));
+}
+
+function setStatus(msg, ok=false) {
+  statusEl.textContent = msg;
+  statusEl.className = ok ? 'ok' : '';
+}
+
+function setBusy(v) {
+  generateBtn.disabled = v;
+  reshuffleAllBtn.disabled = v;
+}
+
+function getAllPlannedDishes5Days(excludeDateKey=null) {
+  const days = nextFiveDays().map(fmtDateKey);
+  const dishes = new Set();
+  for (const dk of days) {
+    if (excludeDateKey && dk === excludeDateKey) continue;
+    const plan = state.plans[dk];
+    if (!plan) continue;
+    ['breakfast','lunch','dinner'].forEach((m) => {
+      const dish = plan?.[m]?.dish;
+      if (dish) dishes.add(dish.trim().toLowerCase());
+    });
+  }
+  return [...dishes];
+}
+
+function dateLabel(d) {
+  return d.toLocaleDateString('en-IN', { weekday:'short', day:'2-digit' });
+}
+
+function renderDayButtons() {
+  dayButtonsEl.innerHTML = '';
+  nextFiveDays().forEach((d) => {
+    const key = fmtDateKey(d);
+    const btn = document.createElement('button');
+    btn.className = 'ghost' + (state.selectedDate === key ? ' selected-day' : '');
+    btn.textContent = dateLabel(d);
+    btn.onclick = () => {
+      state.selectedDate = key;
+      renderDayButtons();
+      renderCurrentPlan();
+      if (!state.plans[key]) generateMenuForSelectedDay();
+    };
+    dayButtonsEl.appendChild(btn);
+  });
+}
+
+function renderIngredients(items=[]) {
+  ingredientsEl.innerHTML = '';
+  if (!items.length) {
+    ingredientsEl.innerHTML = '<span class="muted">No ingredients yet. Generate menu first.</span>';
+    return;
+  }
+  items.forEach((i) => {
+    const span = document.createElement('span');
+    span.className = 'pill';
+    span.textContent = i;
+    ingredientsEl.appendChild(span);
+  });
+}
+
+function menuTextFromPlan(plan) {
+  if (!plan) return '';
+  return `Hello! Here is the menu for ${state.selectedDate}. Breakfast: ${plan.breakfast?.dish || '-'} . Lunch: ${plan.lunch?.dish || '-'} . Dinner: ${plan.dinner?.dish || '-'}.`;
+}
+
+async function fetchPexelsImage(query) {
+  const res = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=1`, {
+    headers: { Authorization: PEXELS_API_KEY }
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data?.photos?.[0]?.src?.large || null;
+}
+
+async function enrichImages(plan) {
+  for (const meal of ['breakfast','lunch','dinner']) {
+    if (!plan?.[meal]?.dish) continue;
+    if (plan[meal].image) continue;
+    const img = await fetchPexelsImage(`${plan[meal].dish} indian vegetarian food`);
+    if (img) plan[meal].image = img;
+  }
+}
+
+function mealCard(mealKey, plan) {
+  const meal = plan?.[mealKey] || {};
+  const labels = { breakfast:'🌞 Breakfast', lunch:'🥘 Lunch', dinner:'🌙 Dinner' };
+  const dish = meal.dish || '-';
+  const desc = meal.desc || 'A delicious and nutritious vegetarian meal.';
+  const calories = meal.calories || 'N/A';
+  const image = meal.image || 'https://images.unsplash.com/photo-1546833998-877b37c2e5c6?w=800';
+
+  const card = document.createElement('div');
+  card.className = 'meal-card';
+  card.innerHTML = `
+    <img class="meal-image" src="${image}" alt="${labels[mealKey]}" />
+    <div class="meal-content">
+      <div class="meal-title">${labels[mealKey]}</div>
+      <div class="meal-dish">${dish}</div>
+      <div class="meal-desc">${desc}</div>
+      <div class="meta">🔥 ${calories} • 🌿 Veg</div>
+      <button class="ghost" data-meal="${mealKey}">🔄 Swap ${labels[mealKey].split(' ')[1]}</button>
+    </div>
+  `;
+  card.querySelector('button').onclick = () => regenerateSingleMeal(mealKey);
+  return card;
+}
+
+function renderCurrentPlan() {
+  const plan = state.plans[state.selectedDate];
+  menuHeadingEl.textContent = `Menu for ${state.selectedDate}`;
+  mealsGridEl.innerHTML = '';
+  if (!plan) {
+    chefsNoteEl.textContent = 'Generating menu...';
+    renderIngredients([]);
+    return;
+  }
+  chefsNoteEl.textContent = plan.message ? `Chef's Note: ${plan.message}` : '';
+  ['breakfast','lunch','dinner'].forEach((m) => mealsGridEl.appendChild(mealCard(m, plan)));
+  renderIngredients(plan.ingredients || []);
+}
+
+function extractJSONObject(text) {
+  try {
+    const m = text.match(/\{[\s\S]*\}/);
+    const raw = m ? m[0] : text;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+async function callGeminiJSON(prompt) {
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
+      generationConfig: { temperature: 0.8 }
+    })
+  });
+  if (!res.ok) throw new Error(`Gemini error ${res.status}`);
+  const data = await res.json();
+  const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text).join('\n') || '';
+  const parsed = extractJSONObject(text);
+  if (!parsed) throw new Error('Could not parse AI response JSON. Please retry.');
+  return parsed;
+}
+
+function makeGeneratePrompt() {
+  const currentDate = state.selectedDate;
+  const isWeekend = [0,6].includes(new Date(currentDate).getDay());
+  const dislikes = prefsEl.value.trim() || 'None';
+  const alreadyPlanned = getAllPlannedDishes5Days(currentDate);
+
+  return `You are a JSON-only API.
+Context: Planning meals for ${currentDate}. Weekend: ${isWeekend ? 'Yes':'No'}.
+Constraints: 100% vegetarian. Avoid these dislikes: ${dislikes}.
+CRITICAL UNIQUENESS: These dishes are already used in the next 5-day plan: ${alreadyPlanned.join(', ') || 'None'}.
+DO NOT repeat any of them.
+
+Return STRICT JSON:
+{
+  "breakfast": {"dish": "Name", "desc": "Short appetizing description", "calories": "350 kcal"},
+  "lunch": {"dish": "Name", "desc": "Short appetizing description", "calories": "450 kcal"},
+  "dinner": {"dish": "Name", "desc": "Short appetizing description", "calories": "400 kcal"},
+  "message": "Chef tip",
+  "ingredients": ["item1", "item2", "item3"]
+}`;
+}
+
+async function generateMenuForSelectedDay() {
+  setBusy(true);
+  setStatus('Generating unique menu...');
+  try {
+    localStorage.setItem(PREFS_KEY, prefsEl.value.trim());
+    const plan = await callGeminiJSON(makeGeneratePrompt());
+    await enrichImages(plan);
+    state.plans[state.selectedDate] = plan;
+    savePlans();
+    renderCurrentPlan();
+    setStatus('Menu generated successfully.', true);
+  } catch (e) {
+    setStatus(e.message || 'Failed to generate menu');
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function regenerateSingleMeal(mealKey) {
+  const current = state.plans[state.selectedDate];
+  if (!current) return;
+  setBusy(true);
+  setStatus(`Swapping ${mealKey} with a unique option...`);
+  try {
+    const dislikes = prefsEl.value.trim() || 'None';
+    const already = getAllPlannedDishes5Days(state.selectedDate);
+    const prompt = `You are a JSON-only API.
+Current full menu JSON: ${JSON.stringify(current)}
+Task: Change ONLY ${mealKey} meal. Keep other meals unchanged.
+Avoid dislikes: ${dislikes}
+Do not repeat dishes from this list: ${already.join(', ') || 'None'}
+Return strict JSON with same schema as input including breakfast/lunch/dinner/message/ingredients.`;
+
+    const updated = await callGeminiJSON(prompt);
+    // protect unchanged meals if model violated
+    ['breakfast','lunch','dinner'].forEach((m) => {
+      if (m !== mealKey && current[m]) updated[m] = current[m];
+    });
+    await enrichImages(updated);
+    state.plans[state.selectedDate] = updated;
+    savePlans();
+    renderCurrentPlan();
+    setStatus(`${mealKey} swapped successfully.`, true);
+  } catch (e) {
+    setStatus(e.message || `Failed to swap ${mealKey}`);
+  } finally {
+    setBusy(false);
+  }
+}
+
+savePrefsBtn.onclick = () => {
+  localStorage.setItem(PREFS_KEY, prefsEl.value.trim());
+  setStatus('Preferences saved.', true);
+};
+
+clearPrefsBtn.onclick = () => {
+  localStorage.removeItem(PREFS_KEY);
+  prefsEl.value = '';
+  setStatus('Preferences cleared.', true);
+};
+
+generateBtn.onclick = generateMenuForSelectedDay;
+reshuffleAllBtn.onclick = generateMenuForSelectedDay;
+voiceBtn.onclick = () => {
+  const plan = state.plans[state.selectedDate];
+  if (!plan || !('speechSynthesis' in window)) {
+    setStatus('Voice output unavailable or no menu generated yet.');
+    return;
+  }
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(menuTextFromPlan(plan));
+  u.rate = 1;
+  u.pitch = 1;
+  window.speechSynthesis.speak(u);
+  setStatus('Reading menu aloud...', true);
+};
+
+(function init() {
+  const firstDay = fmtDateKey(nextFiveDays()[0]);
+  state.selectedDate = firstDay;
+  renderDayButtons();
+  renderCurrentPlan();
+  if (!state.plans[firstDay]) {
+    generateMenuForSelectedDay();
+  }
+})();
+</script>
+</body>
+</html>
