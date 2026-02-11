@@ -87,9 +87,47 @@
       font-size:.83rem;
       color:#be123c;
     }
+    .loading-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(17, 24, 39, 0.35);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      padding: 20px;
+    }
+    .loading-card {
+      background: #fff;
+      border-radius: 14px;
+      padding: 18px 22px;
+      min-width: 280px;
+      box-shadow: 0 20px 40px rgba(0,0,0,.2);
+      text-align: center;
+      color: #9a3412;
+      font-weight: 700;
+    }
+    .spin {
+      display: inline-block;
+      font-size: 28px;
+      margin-bottom: 8px;
+      animation: spin 1.2s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .audio-wrap {
+      margin-top: 12px;
+      border-top: 1px dashed #e5e7eb;
+      padding-top: 12px;
+    }
   </style>
 </head>
 <body>
+  <div id="loadingOverlay" class="loading-overlay" aria-live="polite">
+    <div class="loading-card">
+      <div class="spin">🍲</div>
+      <div id="loadingText">Chef is preparing...</div>
+    </div>
+  </div>
   <div class="wrap">
     <div class="card">
       <h1>🍳 Ammy's Choice</h1>
@@ -121,11 +159,22 @@
         <h3 id="menuHeading">Today's Menu</h3>
         <div class="row">
           <button id="reshuffleAllBtn" class="ghost">🔄 Shuffle Whole Menu</button>
-          <button id="voiceBtn" class="ghost">📲 Share Menu as Audio</button>
+          <button id="voiceBtn" class="ghost">🔊 Play Voice</button>
         </div>
       </div>
       <p id="chefsNote" class="muted" style="margin-top:8px"></p>
       <div id="mealsGrid" class="meals-grid" style="margin-top:12px"></div>
+
+      <div class="audio-wrap">
+        <h3>📲 Audio Sharing</h3>
+        <div class="row" style="margin-top:8px">
+          <button id="generateAudioBtn" class="ghost">Generate Downloadable Audio</button>
+          <a id="downloadAudioLink" class="ghost" style="text-decoration:none; padding:10px 14px; border-radius:10px;" href="#" download="ammy-menu.mp3">⬇️ Download Audio</a>
+          <button id="shareAudioBtn" class="ghost">📤 Share Audio</button>
+        </div>
+        <audio id="menuAudioPlayer" controls style="width:100%; margin-top:10px; display:none"></audio>
+      </div>
+
       <div class="ingredients-wrap">
         <h3>🛒 Ingredients for Today</h3>
         <div id="ingredients"></div>
@@ -161,9 +210,23 @@ const reshuffleAllBtn = document.getElementById('reshuffleAllBtn');
 const savePrefsBtn = document.getElementById('savePrefsBtn');
 const clearPrefsBtn = document.getElementById('clearPrefsBtn');
 const voiceBtn = document.getElementById('voiceBtn');
+const generateAudioBtn = document.getElementById('generateAudioBtn');
+const shareAudioBtn = document.getElementById('shareAudioBtn');
+const downloadAudioLink = document.getElementById('downloadAudioLink');
+const menuAudioPlayer = document.getElementById('menuAudioPlayer');
+const loadingOverlayEl = document.getElementById('loadingOverlay');
+const loadingTextEl = document.getElementById('loadingText');
 
 prefsEl.value = localStorage.getItem(PREFS_KEY) || '';
 state.plans = JSON.parse(localStorage.getItem(PLANS_KEY) || '{}');
+
+const LOADING_MESSAGES = [
+  '🥕 Chopping the freshest bhindi...',
+  '🍅 Simmering chana masala gravy...',
+  '🥬 Picking veggies for today\'s menu...',
+  '👨‍🍳 Chef is preparing a fresh plate...',
+  '🍋 Adding tadka and finishing touches...'
+];
 
 function todayIST() {
   const now = new Date();
@@ -208,6 +271,19 @@ function setBusy(v) {
   reshuffleAllBtn.disabled = v;
 }
 
+function showLoading(message) {
+  loadingTextEl.textContent = message || 'Chef is preparing...';
+  loadingOverlayEl.style.display = 'flex';
+}
+
+function hideLoading() {
+  loadingOverlayEl.style.display = 'none';
+}
+
+function randomLoadingMessage() {
+  return LOADING_MESSAGES[Math.floor(Math.random() * LOADING_MESSAGES.length)];
+}
+
 function getAllPlannedDishes5Days(excludeDateKey=null) {
   const days = nextFiveDays().map(fmtDateKey);
   const dishes = new Set();
@@ -235,10 +311,15 @@ function renderDayButtons() {
     btn.className = 'ghost' + (state.selectedDate === key ? ' selected-day' : '');
     btn.textContent = dateLabel(d);
     btn.onclick = () => {
+      showLoading(`📅 Loading ${dateLabel(d)} menu...`);
       state.selectedDate = key;
       renderDayButtons();
       renderCurrentPlan();
-      if (!state.plans[key]) generateMenuForSelectedDay();
+      if (!state.plans[key]) {
+        generateMenuForSelectedDay();
+      } else {
+        setTimeout(hideLoading, 500);
+      }
     };
     dayButtonsEl.appendChild(btn);
   });
@@ -261,6 +342,24 @@ function renderIngredients(items=[]) {
 function menuTextFromPlan(plan) {
   if (!plan) return '';
   return `Hello! Here is the menu for ${state.selectedDate}. Breakfast: ${plan.breakfast?.dish || '-'} . Lunch: ${plan.lunch?.dish || '-'} . Dinner: ${plan.dinner?.dish || '-'}.`;
+}
+
+function narrationTextFromPlan(plan) {
+  return `Hello! Here is your menu for ${state.selectedDate}. Breakfast is ${plan.breakfast?.dish || '-'} . Lunch is ${plan.lunch?.dish || '-'} . Dinner is ${plan.dinner?.dish || '-'} . ${plan.message || ''}`;
+}
+
+function getIndianVoice() {
+  const voices = window.speechSynthesis?.getVoices?.() || [];
+  return (
+    voices.find(v => /en[-_]IN/i.test(v.lang)) ||
+    voices.find(v => /hi[-_]IN/i.test(v.lang)) ||
+    voices.find(v => /india/i.test(v.name)) ||
+    null
+  );
+}
+
+function buildAudioUrl(text) {
+  return `https://api.streamelements.com/kappa/v2/speech?voice=Aditi&text=${encodeURIComponent(text)}`;
 }
 
 async function fetchPexelsImage(query) {
@@ -414,6 +513,7 @@ Return STRICT JSON:
 
 async function generateMenuForSelectedDay() {
   setBusy(true);
+  showLoading(randomLoadingMessage());
   setStatus('Generating unique menu...');
   try {
     localStorage.setItem(PREFS_KEY, prefsEl.value.trim());
@@ -427,6 +527,7 @@ async function generateMenuForSelectedDay() {
     setStatus(e.message || 'Failed to generate menu');
   } finally {
     setBusy(false);
+    hideLoading();
   }
 }
 
@@ -434,6 +535,7 @@ async function regenerateSingleMeal(mealKey) {
   const current = state.plans[state.selectedDate];
   if (!current) return;
   setBusy(true);
+  showLoading(`🔄 Chef is swapping ${mealKey}...`);
   setStatus(`Swapping ${mealKey} with a unique option...`);
   try {
     const dislikes = prefsEl.value.trim() || 'None';
@@ -459,6 +561,7 @@ Return strict JSON with same schema as input including breakfast/lunch/dinner/me
     setStatus(e.message || `Failed to swap ${mealKey}`);
   } finally {
     setBusy(false);
+    hideLoading();
   }
 }
 
@@ -495,10 +598,65 @@ voiceBtn.onclick = () => {
   }
   window.speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(menuTextFromPlan(plan));
+  const indianVoice = getIndianVoice();
+  if (indianVoice) {
+    u.voice = indianVoice;
+    u.lang = indianVoice.lang;
+  } else {
+    u.lang = 'en-IN';
+  }
   u.rate = 1;
   u.pitch = 1;
   window.speechSynthesis.speak(u);
   setStatus('Reading menu aloud...', true);
+};
+
+generateAudioBtn.onclick = async () => {
+  const plan = state.plans[state.selectedDate];
+  if (!plan) {
+    setStatus('Generate menu first to create audio.');
+    return;
+  }
+  const text = narrationTextFromPlan(plan);
+  const audioUrl = buildAudioUrl(text);
+  menuAudioPlayer.src = audioUrl;
+  menuAudioPlayer.style.display = 'block';
+  downloadAudioLink.href = audioUrl;
+  downloadAudioLink.setAttribute('download', `ammy-menu-${state.selectedDate}.mp3`);
+  setStatus('Audio file ready. You can play/download/share it.', true);
+};
+
+shareAudioBtn.onclick = async () => {
+  const plan = state.plans[state.selectedDate];
+  if (!plan) {
+    setStatus('Generate menu first to share audio.');
+    return;
+  }
+  const audioUrl = menuAudioPlayer.src || buildAudioUrl(narrationTextFromPlan(plan));
+  try {
+    const canFileShare = !!navigator.canShare && !!navigator.share;
+    if (canFileShare) {
+      const resp = await fetch(audioUrl);
+      const blob = await resp.blob();
+      const file = new File([blob], `ammy-menu-${state.selectedDate}.mp3`, { type: 'audio/mpeg' });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: 'Ammy Menu Audio', text: 'Today\'s menu audio' });
+        setStatus('Audio shared successfully.', true);
+        return;
+      }
+    }
+
+    if (navigator.share) {
+      await navigator.share({ title: 'Ammy Menu Audio', text: 'Today\'s menu audio', url: audioUrl });
+      setStatus('Share link sent successfully.', true);
+      return;
+    }
+
+    window.open(audioUrl, '_blank');
+    setStatus('Opened audio in new tab. Use your browser share option.', true);
+  } catch (e) {
+    setStatus('Could not auto-share audio. Please use Download and share manually.');
+  }
 };
 
 (function init() {

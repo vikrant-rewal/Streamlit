@@ -10,9 +10,11 @@ This repository now includes a standalone GitHub Pages-ready planner at:
 - Auto-generate menu for a day if missing
 - Whole-menu shuffle
 - Individual meal swap (`Breakfast`, `Lunch`, `Dinner`)
+- Loading animation + chef/cooking status messages during date switch/generation/reshuffle
 - Gemini key verification button (`Verify Gemini Key`)
 - Preference save/clear
-- Voice output (speech synthesis)
+- Voice output (speech synthesis; prefers Indian voice `en-IN` when available)
+- Downloadable audio generation and share flow (Web Share API with fallback)
 - Ingredients section for ordering
 - Dish images for all 3 meals (via Pexels lookup)
 - Uniqueness guard across 5-day planning (used in both full generation and single-meal reshuffle prompts)
