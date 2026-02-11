@@ -1,20 +1,45 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Ammy's Choice Meal Planner
 
-# Run and deploy your AI Studio app
+This repository now includes a standalone GitHub Pages-ready planner at:
 
-This contains everything you need to run your app locally.
+- `docs/index.html`
 
-View your app in AI Studio: https://ai.studio/apps/drive/1FyL00St-u6-5DCpDdoH-HkUFXssfXW1k
+## What is implemented in the HTML page
 
-## Run Locally
+- 5-day selector (today + next 4 days)
+- Auto-generate menu for a day if missing
+- Whole-menu shuffle
+- Individual meal swap (`Breakfast`, `Lunch`, `Dinner`)
+- Loading animation + chef/cooking status messages during date switch/generation/reshuffle
+- Gemini key verification button (`Verify Gemini Key`)
+- Preference save/clear
+- Voice output (speech synthesis; prefers Indian voice `en-IN` when available)
+- Downloadable audio generation and share flow (Web Share API with fallback)
+- Ingredients section for ordering
+- Dish images for all 3 meals (via Pexels lookup)
+- Uniqueness guard across 5-day planning (used in both full generation and single-meal reshuffle prompts)
+- AI backend uses **Gemini** with automatic retry/backoff and model fallback (`gemini-2.5-flash` → `gemini-1.5-flash`) to reduce 429 failures.
 
-**Prerequisites:**  Node.js
+## GitHub Pages hosting
 
+In GitHub repo settings:
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+1. Go to **Settings → Pages**
+2. Set Source to **Deploy from a branch**
+3. Select branch `main` and folder `/docs`
+
+Your page will be served from your GitHub Pages URL.
+
+## Local run
+
+```bash
+python3 -m http.server 8080
+```
+
+Open:
+
+```text
+http://localhost:8080/docs/
+```
+
+> Note: In some environments, direct browser calls to external AI APIs can fail due to CORS/network policy. In that case, use a small backend proxy for Gemini requests.
